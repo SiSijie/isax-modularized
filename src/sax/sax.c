@@ -20,15 +20,29 @@ typedef struct SAXCache {
 
 
 SAXWord value2SAXWord(Value value, Value const *breakpoints, unsigned int num_breakpoints) {
-    Value *nearest_breakpoint = (Value *) bsearch(&value, breakpoints, num_breakpoints, sizeof(Value), VALUE_COMPARE);
+    if (VALUE_LESS(value, breakpoints[0])) {
+        return (SAXWord) 0;
+    }
 
-    if (nearest_breakpoint != NULL) {
-        return (SAXWord) (nearest_breakpoint - breakpoints);
-    } else if (value > 0) {
+    if (VALUE_LESS(breakpoints[num_breakpoints - 1], value)) {
         return (SAXWord) num_breakpoints;
     }
 
-    return (SAXWord) 0;
+    unsigned int left = 1, right = num_breakpoints, mid = (1 + num_breakpoints) >> 1u;
+
+    while (left < right) {
+        if (VALUE_LESS(value, breakpoints[mid])) {
+            right = mid;
+        } else if (VALUE_LESS(breakpoints[mid], value)) {
+            left = mid + 1;
+        } else {
+            return (SAXWord) mid;
+        }
+
+        mid = (left + right) >> 1u;
+    }
+
+    return (SAXWord) left;
 }
 
 
@@ -46,7 +60,8 @@ void *summarizations2SAXsThread(void *cache) {
             stop_position = saxCache->size;
         }
 
-        for (size_t i = start_position; i < stop_position; i += saxCache->sax_length) {
+        for (size_t i = start_position * saxCache->sax_length;
+             i < stop_position * saxCache->sax_length; i += saxCache->sax_length) {
             for (unsigned int j = 0; j < saxCache->sax_length; ++j) {
                 saxCache->saxs[i + j] = value2SAXWord(saxCache->summarizations[i + j],
                                                       saxCache->breakpoints[j] + offset, num_breakpoints);
@@ -63,8 +78,7 @@ summarizations2SAXs(Value const *summarizations, Value const *const *breakpoints
                     unsigned int sax_cardinality, int num_threads) {
     SAXWord *saxs = malloc(sizeof(SAXWord) * sax_length * size);
 
-    size_t shared_processed_counter = 0;
-    size_t block_size = size / (num_threads * 2);
+    size_t shared_processed_counter = 0, block_size = size / (num_threads * 2);
 
     pthread_t threads[num_threads];
     SAXCache saxCache[num_threads];

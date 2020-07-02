@@ -19,11 +19,9 @@ typedef struct IndexCache {
 
 
 Node *route(Node const *parent, SAXWord const *sax, size_t num_segments) {
-    Node const *leftChild = parent->left;
-
     for (size_t i = 0; i < num_segments; ++i) {
-        if (leftChild->masks[i] != parent->masks[i]) {
-            if ((leftChild->masks[i] & sax[i]) != (parent->masks[i] & sax[i])) {
+        if (parent->right->masks[i] != parent->masks[i]) {
+            if ((parent->right->masks[i] & sax[i]) == 0u) {
                 return parent->left;
             } else {
                 return parent->right;
@@ -38,14 +36,15 @@ Node *route(Node const *parent, SAXWord const *sax, size_t num_segments) {
 
 void insertNode(Node *leaf, size_t position, size_t initial_leaf_size, size_t leaf_size) {
     if (leaf->capacity == 0) {
-        leaf->positions = malloc(sizeof(size_t) * initial_leaf_size);
+        leaf->capacity = initial_leaf_size;
+        leaf->positions = malloc(sizeof(size_t) * leaf->capacity);
     } else if (leaf->size == leaf->capacity) {
-        size_t next_leaf_size = leaf->capacity * 2;
-        if (next_leaf_size > leaf_size) {
-            next_leaf_size = leaf_size;
+        leaf->capacity *= 2;
+        if (leaf->capacity > leaf_size) {
+            leaf->capacity = leaf_size;
         }
 
-        leaf->positions = realloc(leaf->positions, next_leaf_size);
+        leaf->positions = realloc(leaf->positions, sizeof(size_t) * leaf->capacity);
     }
 
     leaf->positions[leaf->size] = position;
@@ -53,7 +52,7 @@ void insertNode(Node *leaf, size_t position, size_t initial_leaf_size, size_t le
 }
 
 
-void splitNode(Index *index, Node *parent, SAXWord *sax, size_t num_segments) {
+void splitNode(Index *index, Node *parent, SAXWord const *sax, size_t num_segments) {
     size_t segment_to_split = -1;
     int smallest_difference = parent->size;
 
@@ -70,7 +69,7 @@ void splitNode(Index *index, Node *parent, SAXWord *sax, size_t num_segments) {
                 }
             }
 
-            if (abs(ones - zeros) < smallest_difference) {
+            if (ones - zeros < smallest_difference && zeros - ones < smallest_difference ) {
                 segment_to_split = i;
                 smallest_difference = abs(ones - zeros);
             }
@@ -83,20 +82,21 @@ void splitNode(Index *index, Node *parent, SAXWord *sax, size_t num_segments) {
     }
 
     SAXMask *child_masks = malloc(sizeof(SAXMask) * num_segments);
+    memcpy(child_masks, parent->masks, sizeof(SAXMask) * num_segments);
     child_masks[segment_to_split] >>= 1u;
 
     SAXWord *right_sax = malloc(sizeof(SAXWord) * num_segments);
     memcpy(right_sax, parent->sax, sizeof(SAXWord) * num_segments);
     right_sax[segment_to_split] |= child_masks[segment_to_split];
 
-    Node *left_child = initializeNode(parent->sax, child_masks);
-    Node *right_child = initializeNode(right_sax, child_masks);
+    parent->left = initializeNode(parent->sax, child_masks);
+    parent->right = initializeNode(right_sax, child_masks);
 
     for (size_t i = 0; i < parent->size; ++i) {
         if ((index->saxs[parent->positions[i] + segment_to_split] & child_masks[segment_to_split]) == 0) {
-            insertNode(left_child, parent->positions[i], parent->capacity, parent->capacity);
+            insertNode(parent->left, parent->positions[i], parent->capacity, parent->capacity);
         } else {
-            insertNode(right_child, parent->positions[i], parent->capacity, parent->capacity);
+            insertNode(parent->right, parent->positions[i], parent->capacity, parent->capacity);
         }
     }
 
@@ -114,30 +114,29 @@ void *buildIndexThread(void *cache) {
     size_t start_position;
     while ((start_position = __sync_fetch_and_add(indexCache->shared_start_position, indexCache->block_size)) <
            index->database_size) {
+
         size_t stop_position = start_position + indexCache->block_size;
         if (stop_position > index->database_size) {
             stop_position = index->database_size;
         }
 
         for (size_t i = start_position; i < stop_position; ++i) {
-            SAXWord *sax = index->saxs + index->sax_length * i;
+            SAXWord const *sax = index->saxs + index->sax_length * i;
             Node *node = index->roots[rootSAX2Position(sax, index->sax_length, index->sax_cardinality)];
 
             pthread_mutex_lock(node->lock);
-            while (node->left != NULL) {
-                pthread_mutex_unlock(node->lock);
-                node = route(node, sax, index->sax_length);
-                pthread_mutex_lock(node->lock);
-            }
 
-            if (node->size == indexCache->leaf_size) {
+            while (node->left != NULL || (node->capacity != 0 && node->size == indexCache->leaf_size)) {
                 Node *parent = node;
 
-                splitNode(index, parent, sax, index->sax_length);
+                if (node->size == indexCache->leaf_size) {
+                    splitNode(index, parent, sax, index->sax_length);
+                }
+
                 node = route(parent, sax, index->sax_length);
 
-                pthread_mutex_unlock(parent->lock);
                 pthread_mutex_lock(node->lock);
+                pthread_mutex_unlock(parent->lock);
             }
 
             insertNode(node, i, indexCache->initial_leaf_size, indexCache->leaf_size);

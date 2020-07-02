@@ -46,4 +46,4 @@ typedef struct Config {
 
 Config *initializeConfig(int argc, char **argv);
 
-#endif //ISA_CONFIG_H
+#endif //ISAX_CONFIG_H

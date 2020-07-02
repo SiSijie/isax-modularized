@@ -26,7 +26,7 @@ typedef struct Index {
 
     Value const *summarizations;
     Value const *const *breakpoints;
-    SAXWord *saxs;
+    SAXWord const *saxs;
 
     size_t sax_length;
     unsigned int sax_cardinality;

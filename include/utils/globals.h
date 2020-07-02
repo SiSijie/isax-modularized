@@ -25,9 +25,9 @@ static inline int VALUE_COMPARE(void const *left, void const *right) {
         return -1;
     } else if (VALUE_LESS(*(Value *) right, *(Value *) left)) {
         return 1;
+    } else {
+        return 0;
     }
-
-    return 0;
 }
 
 #endif //ISAX_GLOBALS_H

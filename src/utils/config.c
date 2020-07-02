@@ -146,7 +146,7 @@ Config *initializeConfig(int argc, char **argv) {
     assert(config->initial_leaf_size > 0 && config->initial_leaf_size <= config->leaf_size);
 
     assert(cpu_cores > 0 && numa_cores > 0 &&
-           (numa_cores == 2 && cpu_cores <= 32) && (numa_cores == 1 && cpu_cores <= 16));
+           ((numa_cores == 2 && cpu_cores <= 32) || (numa_cores == 1 && cpu_cores <= 16)));
 
     initializeThreads(config, cpu_cores, numa_cores);
     return config;

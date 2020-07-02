@@ -103,6 +103,7 @@ void *adhocBreakpointsThread(void *cache) {
         breakpointsCache->breakpoints[current_segment] = getAdhocBreakpoints8(values_segment, breakpointsCache->size);
     }
 
+    free(values_segment);
     return NULL;
 }
 

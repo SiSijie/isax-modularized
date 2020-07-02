@@ -18,6 +18,7 @@ Node *initializeNode(SAXWord *sax, SAXMask *masks) {
     node->left = NULL;
     node->right = NULL;
 
+    node->lock = malloc(sizeof(pthread_mutex_t));
     assert(pthread_mutex_init(node->lock, NULL) == 0);
 
     return node;

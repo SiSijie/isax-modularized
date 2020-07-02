@@ -19,6 +19,11 @@ add_subdirectory(src/sax)
 add_subdirectory(src/utils)
 
 add_executable(isax main.c)
-target_link_libraries(isax index sax paa utils pthread m)
+
+target_link_libraries(isax PRIVATE index sax paa utils)
+target_link_libraries(isax PUBLIC pthread m)
+
+add_compile_options(-g -ggdb)
+set(CMAKE_BUILD_TYPE Debug)
 
 install (TARGETS isax DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/bin)

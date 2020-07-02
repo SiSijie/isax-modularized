@@ -6,23 +6,23 @@
 
 
 SAXWord *rootPosition2SAX(size_t position, size_t num_segments, unsigned int cardinality) {
-    SAXWord *saxs = malloc(sizeof(SAXWord) * num_segments);
+    SAXWord *sax = malloc(sizeof(SAXWord) * num_segments);
 
-    for (size_t i = num_segments - 1; i >= 0; --i) {
-        saxs[i] = (SAXWord) ((position % 2) << (cardinality - 1));
+    for (size_t i = 0; i < num_segments; ++i) {
+        sax[num_segments - 1 - i] = (SAXWord) ((position % 2) << (cardinality - 1));
         position >>= 1u;
     }
 
-    return saxs;
+    return sax;
 }
 
 
 size_t rootSAX2Position(SAXWord const *saxs, size_t num_segments, unsigned int cardinality) {
     size_t position = 0;
 
-    for (size_t i = num_segments - 1; i >= 0; --i) {
+    for (size_t i = 0; i < num_segments; ++i) {
         position <<= 1u;
-        position += (saxs[i] >> (cardinality - 1));
+        position += (size_t) (saxs[i] >> (cardinality - 1));
     }
 
     return position;
@@ -55,7 +55,7 @@ Index *initializeIndex(Config const *config) {
 
     Value *values = malloc(sizeof(Value) * config->series_length * config->database_size);
     FILE *file_values = fopen(config->database_filepath, "rb");
-    fread(values, sizeof(Value), sizeof(Value) * config->series_length * config->database_size, file_values);
+    fread(values, sizeof(Value), config->series_length * config->database_size, file_values);
     fclose(file_values);
 
     index->values = (Value const *) values;
@@ -63,11 +63,10 @@ Index *initializeIndex(Config const *config) {
     if (config->database_summarization_filepath != NULL) {
         Value *summarizations = malloc(sizeof(Value) * config->sax_length * config->database_size);
         FILE *file_summarizations = fopen(config->database_summarization_filepath, "rb");
-        fread(summarizations, sizeof(Value), sizeof(Value) * config->sax_length * config->database_size,
-              file_summarizations);
+        fread(summarizations, sizeof(Value), config->sax_length * config->database_size, file_summarizations);
         fclose(file_summarizations);
 
-        index->summarizations = (Value const *) index->summarizations;
+        index->summarizations = (Value const *) summarizations;
     } else {
         index->summarizations = (Value const *) piecewiseAggregate(index->values, config->database_size,
                                                                    config->series_length, config->sax_length,
@@ -89,8 +88,8 @@ Index *initializeIndex(Config const *config) {
         index->breakpoints = (Value const *const *) breakpoints;
     }
 
-    index->saxs = summarizations2SAXs(index->summarizations, index->breakpoints, index->database_size,
-                                      index->sax_length, index->sax_cardinality, config->max_threads);
+    index->saxs = (SAXWord const *) summarizations2SAXs(index->summarizations, index->breakpoints, index->database_size,
+                                                        index->sax_length, index->sax_cardinality, config->max_threads);
 
     return index;
 }
@@ -140,7 +139,7 @@ void freeNode(Node *node, bool free_mask, bool free_sax) {
 
 void freeIndex(Config const *config, Index *index) {
     free((Value *) index->values);
-    free(index->saxs);
+    free((SAXWord *) index->saxs);
 
     free((Value *) index->breakpoints[0]);
     if (config->use_adhoc_breakpoints) {
@@ -178,7 +177,7 @@ void inspectNode(Node *node, size_t *num_series, size_t *num_leaves, size_t *num
 
 
 void logIndex(Index *index) {
-    clog_debug(CLOG(CLOGGER_ID), "%d reduced to %d (%d)", index->series_length, index->sax_length,
+    clog_debug(CLOG(CLOGGER_ID), "series %d --> SAX %d (cardinality %d)", index->series_length, index->sax_length,
                index->sax_cardinality);
 
     size_t num_series = 0, num_leaves = 0, num_roots = 0;
