@@ -4,15 +4,19 @@
 
 #include <stdio.h>
 
+#ifndef CLOG_MAIN
 #define CLOG_MAIN
-#include "clog.h"
+#endif
 
+#include "clog.h"
 #include "globals.h"
 #include "config.h"
+#include "index.h"
+#include "index_engine.h"
 
 
 int main(int argc, char **argv) {
-    Config *config = initialize(argc, argv);
+    Config *config = initializeConfig(argc, argv);
 
     int clog_init_code = clog_init_path(CLOGGER_ID, config->log_filepath);
     if (clog_init_code != 0) {
@@ -20,8 +24,14 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    clog_info(CLOG(CLOGGER_ID), "Hello, %s!", "world");
+    Index *index = initializeIndex(config);
+    buildIndex(config, index);
+    finalizeIndex(index);
+    logIndex(index);
 
+    freeIndex(config, index);
     clog_free(CLOGGER_ID);
+
+    free(config);
     return 0;
 }

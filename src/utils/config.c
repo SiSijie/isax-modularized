@@ -2,107 +2,83 @@
 // Created by Qitong Wang on 2020/6/28.
 //
 
-#define _GNU_SOURCE
-#include <sched.h>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <getopt.h>
-#include <string.h>
-#include <pthread.h>
-
 #include "config.h"
 
 
 const struct option longopts[] = {
-        {"database_filepath",    required_argument, NULL, 1},
-        {"database_summarization_filepath",    required_argument, NULL, 2},
-        {"query_filepath",    required_argument, NULL, 3},
+        {"database_filepath",               required_argument, NULL, 1},
+        {"database_summarization_filepath", required_argument, NULL, 2},
+        {"query_filepath",                  required_argument, NULL, 3},
         {"query_summarization_filepath",    required_argument, NULL, 4},
-        {"database_size",    required_argument, 0, 5},
-        {"query_size",    required_argument, 0, 6},
-        {"sax_segments",    required_argument, 0, 7},
-        {"sax_cardinality",    required_argument, 0, 8},
-        {"cpu_control_code",    required_argument, 0, 9},
-        {"log_filepath",    required_argument, 0, 10},
-//        {"use-index",           no_argument,       0, 'a'},
-//        {"initial-lbl-size",    required_argument, 0, 'b'},
-        { NULL, no_argument, NULL, 0 }
+        {"database_size",                   required_argument, 0,    5},
+        {"query_size",                      required_argument, 0,    6},
+        {"sax_length",                    required_argument, 0,    7},
+        {"sax_cardinality",                 required_argument, 0,    8},
+        {"cpu_cores",                       required_argument, 0,    9},
+        {"log_filepath",                    required_argument, 0,    10},
+        {"series_length",                   required_argument, 0,    11},
+        {"adhoc_breakpoints",               no_argument,       0,    12},
+        {"numa_cores",                      required_argument, 0,    13},
+        {"index_block_size",                required_argument, 0,    14},
+        {"leaf_size",                       required_argument, 0,    15},
+        {"initial_leaf_size",               required_argument, 0,    16},
+        {NULL,                              no_argument,       NULL, 0}
 };
 
-void initialize_cpu(Config *config, int cpu_control_code) {
+
+int initializeThreads(Config *config, int cpu_cores, int numa_cores) {
+    config->max_threads = cpu_cores;
+
     cpu_set_t mask, get;
+
     CPU_ZERO(&mask);
     CPU_ZERO(&get);
 
-    if (cpu_control_code == 21) {
-        CPU_SET(0, &mask);
-        CPU_SET(2, &mask);
-//        calculate_thread = 2;
-//        maxquerythread = 2;
-    } else if (cpu_control_code == 22) {
-        CPU_SET(0, &mask);
-        CPU_SET(1, &mask);
-//        calculate_thread = 2;
-//        maxquerythread = 2;
-    } else if (cpu_control_code == 41) {
-        CPU_SET(0, &mask);
-        CPU_SET(2, &mask);
-        CPU_SET(4, &mask);
-        CPU_SET(6, &mask);
-//        calculate_thread = 4;
-//        maxquerythread = 4;
-    } else if (cpu_control_code == 42) {
-        CPU_SET(0, &mask);
-        CPU_SET(1, &mask);
-        CPU_SET(2, &mask);
-        CPU_SET(3, &mask);
-//        calculate_thread = 4;
-//        maxquerythread = 4;
-    } else if (cpu_control_code == 81) {
-        CPU_SET(0, &mask);
-        CPU_SET(2, &mask);
-        CPU_SET(4, &mask);
-        CPU_SET(6, &mask);
-        CPU_SET(8, &mask);
-        CPU_SET(10, &mask);
-        CPU_SET(12, &mask);
-        CPU_SET(14, &mask);
-//        calculate_thread = 8;
-//        maxquerythread = 8;
-    } else if (cpu_control_code == 82) {
-        CPU_SET(0, &mask);
-        CPU_SET(1, &mask);
-        CPU_SET(2, &mask);
-        CPU_SET(3, &mask);
-        CPU_SET(4, &mask);
-        CPU_SET(5, &mask);
-        CPU_SET(6, &mask);
-        CPU_SET(7, &mask);
-//        calculate_thread = 8;
-//        maxquerythread = 8;
-    } else if (cpu_control_code == 1) {
-        // calculate_thread = 1;
-        // maxquerythread = 1;
-    } else {
-        // calculate_thread = cpu_control_code;
-        // maxquerythread = cpu_control_code;
+    // system-dependent
+    int step = 3 - numa_cores;
+    for (int i = 0; i < cpu_cores; ++i) {
+        CPU_SET(i * step, &mask);
     }
 
-    if (pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask) < 0) {
+    if (pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask) != 0) {
         fprintf(stderr, "set thread affinity failed\n");
     }
 
-    if (pthread_getaffinity_np(pthread_self(), sizeof(get), &get) < 0) {
+    if (pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &get) != 0) {
         fprintf(stderr, "get thread affinity failed\n");
     }
+
+    return 0;
 }
 
 
-Config *initialize(int argc, char **argv) {
+Config *initializeConfig(int argc, char **argv) {
     Config *config = malloc(sizeof(Config));
-    int cpu_control_code = 81;
 
+    config->database_filepath = NULL;
+    config->database_summarization_filepath = NULL;
+    config->query_filepath = NULL;
+    config->query_summarization_filepath = NULL;
+    config->log_filepath = "./isax.log";
+
+    config->series_length = 256;
+
+    config->database_size = 0;
+    config->query_size = 0;
+
+    config->initial_leaf_size = 1024;
+    config->leaf_size = 8000;
+
+    config->index_block_size = 20000;
+
+    config->sax_cardinality = 8;
+    config->sax_length = 16;
+
+    config->use_adhoc_breakpoints = false;
+
+    int cpu_cores = 1, numa_cores = 1;
+
+    char *string_parts;
     int opt, longindex = 0;
     while ((opt = getopt_long(argc, argv, "", longopts, &longindex)) != -1) {
         switch (opt) {
@@ -119,28 +95,59 @@ Config *initialize(int argc, char **argv) {
                 config->query_summarization_filepath = optarg;
                 break;
             case 5:
-                config->database_size = atoi(optarg);
+                config->database_size = (size_t) strtoull(optarg, &string_parts, 10);
                 break;
             case 6:
-                config->query_size = atoi(optarg);
+                config->query_size = (size_t) strtoull(optarg, &string_parts, 10);
                 break;
             case 7:
-                config->sax_segments = atoi(optarg);
+                config->sax_length = (size_t) strtoull(optarg, &string_parts, 10);
                 break;
             case 8:
-                config->sax_cardinality = atoi(optarg);
+                config->sax_cardinality = (unsigned int) strtol(optarg, &string_parts, 10);
                 break;
             case 9:
-                cpu_control_code = atoi(optarg);
+                cpu_cores = (int) strtol(optarg, &string_parts, 10);
                 break;
             case 10:
                 config->log_filepath = optarg;
+                break;
+            case 11:
+                config->series_length = (size_t) strtol(optarg, &string_parts, 10);
+                break;
+            case 12:
+                config->use_adhoc_breakpoints = true;
+                break;
+            case 13:
+                numa_cores = (int) strtol(optarg, &string_parts, 10);
+                break;
+            case 14:
+                config->index_block_size = (size_t) strtoull(optarg, &string_parts, 10);
+                break;
+            case 15:
+                config->leaf_size = (size_t) strtoull(optarg, &string_parts, 10);
+                break;
+            case 16:
+                config->initial_leaf_size = (size_t) strtoull(optarg, &string_parts, 10);
                 break;
             default:
                 exit(EXIT_FAILURE);
         }
     }
 
-    initialize_cpu(config, cpu_control_code);
+    assert(config->series_length % config->sax_length == 0);
+    assert(config->sax_length >= 0 && config->sax_length <= 16);
+    assert(config->sax_cardinality == 8);
+    assert(config->database_size >= 0);
+    assert(config->query_size >= 0);
+    assert(config->index_block_size >= 0);
+    assert(config->series_length >= 0);
+    assert(config->leaf_size > 0);
+    assert(config->initial_leaf_size > 0 && config->initial_leaf_size <= config->leaf_size);
+
+    assert(cpu_cores > 0 && numa_cores > 0 &&
+           (numa_cores == 2 && cpu_cores <= 32) && (numa_cores == 1 && cpu_cores <= 16));
+
+    initializeThreads(config, cpu_cores, numa_cores);
     return config;
 }
