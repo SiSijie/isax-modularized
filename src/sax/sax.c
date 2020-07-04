@@ -19,38 +19,34 @@ typedef struct SAXCache {
 } SAXCache;
 
 
-SAXWord value2SAXWord(Value value, Value const *breakpoints, unsigned int num_breakpoints) {
-    if (VALUE_LESS(value, breakpoints[0])) {
-        return (SAXWord) 0;
+unsigned int bSearchCeiling(Value value, Value const *breakpoints, unsigned int first, unsigned int last) {
+    if (first == last) {
+        return last;
     }
 
-    if (VALUE_LESS(breakpoints[num_breakpoints - 1], value)) {
+    unsigned int mid = (first + last) >> 1u;
+
+    if (VALUE_G(value, breakpoints[mid])) {
+        return bSearchCeiling(value, breakpoints, mid + 1, last);
+    }
+
+    return bSearchCeiling(value, breakpoints, first, mid);
+}
+
+
+SAXWord value2SAXWord8(Value value, Value const *breakpoints) {
+    unsigned int num_breakpoints = (1u << 8u) - 1u;
+
+    if (VALUE_G(value, breakpoints[OFFSETS_BY_CARDINALITY[8] + num_breakpoints - 1])) {
         return (SAXWord) num_breakpoints;
     }
 
-    unsigned int left = 1, right = num_breakpoints, mid = (1 + num_breakpoints) >> 1u;
-
-    while (left < right) {
-        if (VALUE_LESS(value, breakpoints[mid])) {
-            right = mid;
-        } else if (VALUE_LESS(breakpoints[mid], value)) {
-            left = mid + 1;
-        } else {
-            return (SAXWord) mid;
-        }
-
-        mid = (left + right) >> 1u;
-    }
-
-    return (SAXWord) left;
+    return (SAXWord) bSearchCeiling(value, breakpoints + OFFSETS_BY_CARDINALITY[8], 0, num_breakpoints - 1);
 }
 
 
 void *summarizations2SAXsThread(void *cache) {
     SAXCache *saxCache = (SAXCache *) cache;
-
-    unsigned int offset = OFFSETS_BY_CARDINALITY[saxCache->sax_cardinality];
-    unsigned int num_breakpoints = (1u << saxCache->sax_cardinality) - 1u;
 
     size_t start_position;
     while ((start_position = __sync_fetch_and_add(saxCache->shared_processed_counter, saxCache->block_size)) <
@@ -63,8 +59,7 @@ void *summarizations2SAXsThread(void *cache) {
         for (size_t i = start_position * saxCache->sax_length;
              i < stop_position * saxCache->sax_length; i += saxCache->sax_length) {
             for (unsigned int j = 0; j < saxCache->sax_length; ++j) {
-                saxCache->saxs[i + j] = value2SAXWord(saxCache->summarizations[i + j],
-                                                      saxCache->breakpoints[j] + offset, num_breakpoints);
+                saxCache->saxs[i + j] = value2SAXWord8(saxCache->summarizations[i + j], saxCache->breakpoints[j]);
             }
         }
     }
@@ -78,7 +73,7 @@ summarizations2SAXs(Value const *summarizations, Value const *const *breakpoints
                     unsigned int sax_cardinality, int num_threads) {
     SAXWord *saxs = malloc(sizeof(SAXWord) * sax_length * size);
 
-    size_t shared_processed_counter = 0, block_size = size / (num_threads * 2);
+    size_t shared_processed_counter = 0, block_size = 1 + size / (num_threads * 2);
 
     pthread_t threads[num_threads];
     SAXCache saxCache[num_threads];
@@ -101,4 +96,49 @@ summarizations2SAXs(Value const *summarizations, Value const *const *breakpoints
     }
 
     return saxs;
+}
+
+
+Value l2SquareValue2SAXWord(Value value, SAXWord sax_word, Value const *breakpoints, unsigned int length) {
+    if (sax_word == (SAXWord) length) {
+        if (VALUE_L(value, breakpoints[length - 1])) {
+            return (breakpoints[length - 1] - value) * (breakpoints[length - 1] - value);
+        }
+        return 0;
+    }
+
+    if (VALUE_G(value, breakpoints[sax_word])) {
+        return (value - breakpoints[sax_word]) * (value - breakpoints[sax_word]);
+    } else if ((sax_word != (SAXWord) 0u) && (VALUE_L(value, breakpoints[sax_word - 1u]))) {
+        return (breakpoints[sax_word - 1u] - value) * (breakpoints[sax_word - 1u] - value);
+    }
+
+    return 0;
+}
+
+// TODO SIMD
+Value l2SquareSummarization2SAXByMask(size_t sax_length, Value const *summarizations, SAXWord const *sax,
+                                      SAXMask const *masks, Value const *const *breakpoints, Value scale_factor) {
+    Value sum = 0;
+
+    for (size_t i = 0; i < sax_length; ++i) {
+        sum += l2SquareValue2SAXWord(summarizations[i], sax[i] >> SHIFTED_BITS_BY_MASK[masks[i]],
+                                     breakpoints[i] + OFFSETS_BY_MASK[masks[i]], LENGTHS_BY_MASK[masks[i]]);
+    }
+
+    return sum * scale_factor;
+}
+
+
+// TODO SIMD
+Value l2SquareSummarization2SAX8(size_t sax_length, Value const *summarizations, SAXWord const *sax,
+                                 Value const *const *breakpoints, Value scale_factor) {
+    Value sum = 0;
+
+    for (size_t i = 0; i < sax_length; ++i) {
+        sum += l2SquareValue2SAXWord(summarizations[i], sax[i], breakpoints[i] + OFFSETS_BY_CARDINALITY[8],
+                                     LENGTHS_BY_CARDINALITY[8]);
+    }
+
+    return sum * scale_factor;
 }

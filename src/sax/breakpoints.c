@@ -77,7 +77,7 @@ Value *getAdhocBreakpoints8(Value const *values, size_t length) {
         range_length = length >> i;
 
         for (unsigned int j = 0; j < (1u << i) - 1; ++j) {
-            // ...[... - 1], i.e., starting from values[0], for compatibility when values = NORMAL_BREAKPOINTS_8
+            // ...[... - 1], i.e., starting from values_heap[0], for compatibility when values_heap = NORMAL_BREAKPOINTS_8
             breakpoints[OFFSETS_BY_CARDINALITY[i] + j] = values[range_length * (j + 1) - 1];
         }
     }

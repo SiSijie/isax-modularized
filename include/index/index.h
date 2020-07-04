@@ -32,8 +32,9 @@ typedef struct Index {
     unsigned int sax_cardinality;
 } Index;
 
+Node *route(Node const *parent, SAXWord const *sax, size_t num_segments);
 
-size_t rootSAX2Position(SAXWord const *saxs, size_t num_segments, unsigned int cardinality);
+size_t rootSAX2ID(SAXWord const *saxs, size_t num_segments, unsigned int cardinality);
 
 Index *initializeIndex(Config const *config);
 

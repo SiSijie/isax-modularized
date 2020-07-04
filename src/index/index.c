@@ -5,27 +5,27 @@
 #include "index.h"
 
 
-SAXWord *rootPosition2SAX(size_t position, size_t num_segments, unsigned int cardinality) {
+SAXWord *rootID2SAX(size_t id, size_t num_segments, unsigned int cardinality) {
     SAXWord *sax = malloc(sizeof(SAXWord) * num_segments);
 
     for (size_t i = 0; i < num_segments; ++i) {
-        sax[num_segments - 1 - i] = (SAXWord) ((position % 2) << (cardinality - 1));
-        position >>= 1u;
+        sax[num_segments - 1 - i] = (SAXWord) ((id % 2) << (cardinality - 1));
+        id >>= 1u;
     }
 
     return sax;
 }
 
 
-size_t rootSAX2Position(SAXWord const *saxs, size_t num_segments, unsigned int cardinality) {
-    size_t position = 0;
+size_t rootSAX2ID(SAXWord const *saxs, size_t num_segments, unsigned int cardinality) {
+    size_t id = 0;
 
     for (size_t i = 0; i < num_segments; ++i) {
-        position <<= 1u;
-        position += (size_t) (saxs[i] >> (cardinality - 1));
+        id <<= 1u;
+        id += (size_t) (saxs[i] >> (cardinality - 1));
     }
 
-    return position;
+    return id;
 }
 
 
@@ -49,7 +49,7 @@ Index *initializeIndex(Config const *config) {
         root_masks[i] = (SAXMask) (1u << (config->sax_cardinality - 1));
     }
     for (size_t i = 0; i < index->roots_size; ++i) {
-        index->roots[i] = initializeNode(rootPosition2SAX(i, config->sax_length, config->sax_cardinality),
+        index->roots[i] = initializeNode(rootID2SAX(i, config->sax_length, config->sax_cardinality),
                                          root_masks);
     }
 
@@ -96,14 +96,16 @@ Index *initializeIndex(Config const *config) {
 
 
 void truncateNode(Node *node) {
-    if (node->size != 0) {
-        node->positions = realloc(node->positions, node->size);
-        node->capacity = node->size;
-    }
+    if (node != NULL) {
+        if (node->size != 0) {
+            node->ids = realloc(node->ids, sizeof(size_t) * node->size);
+            node->capacity = node->size;
+        }
 
-    if (node->left != NULL) {
-        truncateNode(node->left);
-        truncateNode(node->right);
+        if (node->left != NULL) {
+            truncateNode(node->left);
+            truncateNode(node->right);
+        }
     }
 }
 
@@ -112,30 +114,16 @@ void finalizeIndex(Index *index) {
     free((Value *) index->summarizations);
 
     for (unsigned int i = 0; i < index->roots_size; ++i) {
+        if (index->roots[i]->size == 0 && index->roots[i]->left == NULL) {
+            freeNode(index->roots[i], false, true);;
+            index->roots[i] = NULL;
+        }
+    }
+
+    for (unsigned int i = 0; i < index->roots_size; ++i) {
         truncateNode(index->roots[i]);
     }
 }
-
-
-void freeNode(Node *node, bool free_mask, bool free_sax) {
-    if (node->left != NULL) {
-        freeNode(node->left, false, false);
-        freeNode(node->right, true, true);
-    }
-
-    if (free_mask) {
-        free(node->masks);
-    }
-
-    if (free_sax) {
-        free(node->sax);
-    }
-
-    free(node->positions);
-    free(node->lock);
-    free(node);
-}
-
 
 void freeIndex(Config const *config, Index *index) {
     free((Value *) index->values);
@@ -149,30 +137,19 @@ void freeIndex(Config const *config, Index *index) {
     }
     free((Value **) index->breakpoints);
 
-    freeNode(index->roots[0], true, true);
-    for (size_t i = 1; i < index->roots_size; ++i) {
-        freeNode(index->roots[i], false, true);
+    bool first_root = true;
+    for (size_t i = 0; i < index->roots_size; ++i) {
+        if (index->roots[i] != NULL) {
+            if (first_root) {
+                freeNode(index->roots[i], true, true);
+                first_root = false;
+            } else {
+                freeNode(index->roots[i], false, true);
+            }
+        }
     }
+
     free(index->roots);
-}
-
-
-void inspectNode(Node *node, size_t *num_series, size_t *num_leaves, size_t *num_roots) {
-    if (node->size != 0) {
-        if (num_roots != NULL) {
-            *num_roots += 1;
-        }
-
-        *num_leaves += 1;
-        *num_series += node->size;
-    } else if (node->size == 0 && node->left != NULL) {
-        if (num_roots != NULL) {
-            *num_roots += 1;
-        }
-
-        inspectNode(node->left, num_series, num_leaves, NULL);
-        inspectNode(node->right, num_series, num_leaves, NULL);
-    }
 }
 
 

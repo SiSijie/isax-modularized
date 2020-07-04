@@ -12,7 +12,7 @@ const struct option longopts[] = {
         {"query_summarization_filepath",    required_argument, NULL, 4},
         {"database_size",                   required_argument, 0,    5},
         {"query_size",                      required_argument, 0,    6},
-        {"sax_length",                    required_argument, 0,    7},
+        {"sax_length",                      required_argument, 0,    7},
         {"sax_cardinality",                 required_argument, 0,    8},
         {"cpu_cores",                       required_argument, 0,    9},
         {"log_filepath",                    required_argument, 0,    10},
@@ -22,6 +22,9 @@ const struct option longopts[] = {
         {"index_block_size",                required_argument, 0,    14},
         {"leaf_size",                       required_argument, 0,    15},
         {"initial_leaf_size",               required_argument, 0,    16},
+        {"exact_search",                    no_argument,       0,    17},
+        {"k",                               required_argument, 0,    18},
+        {"sort_leaves",                     no_argument,       0,    19},
         {NULL,                              no_argument,       NULL, 0}
 };
 
@@ -34,7 +37,7 @@ int initializeThreads(Config *config, int cpu_cores, int numa_cores) {
     CPU_ZERO(&mask);
     CPU_ZERO(&get);
 
-    // system-dependent
+    // for andromache(Intel(R) Xeon(R) Gold 6134 CPU @ 3.20GHz), system(cpu)-dependent, check by lscpu
     int step = 3 - numa_cores;
     for (int i = 0; i < cpu_cores; ++i) {
         CPU_SET(i * step, &mask);
@@ -75,6 +78,10 @@ Config *initializeConfig(int argc, char **argv) {
     config->sax_length = 16;
 
     config->use_adhoc_breakpoints = false;
+    config->exact_search = false;
+    config->sort_leaves = false;
+
+    config->k = 1;
 
     int cpu_cores = 1, numa_cores = 1;
 
@@ -130,20 +137,29 @@ Config *initializeConfig(int argc, char **argv) {
             case 16:
                 config->initial_leaf_size = (size_t) strtoull(optarg, &string_parts, 10);
                 break;
+            case 17:
+                config->exact_search = true;
+                break;
+            case 18:
+                config->k = (unsigned int) strtol(optarg, &string_parts, 10);
+                break;
+            case 19:
+                config->sort_leaves = true;
+                break;
             default:
                 exit(EXIT_FAILURE);
         }
     }
 
     assert(config->series_length % config->sax_length == 0);
-    assert(config->sax_length >= 0 && config->sax_length <= 16);
+    assert(config->sax_length > 0 && config->sax_length <= 16);
     assert(config->sax_cardinality == 8);
-    assert(config->database_size >= 0);
-    assert(config->query_size >= 0);
-    assert(config->index_block_size >= 0);
-    assert(config->series_length >= 0);
-    assert(config->leaf_size > 0);
-    assert(config->initial_leaf_size > 0 && config->initial_leaf_size <= config->leaf_size);
+    assert(config->database_size > 0);
+    assert(config->query_size > 0);
+    assert(config->index_block_size > 0);
+    assert(config->series_length > 0);
+    assert(config->leaf_size > 0 && config->initial_leaf_size > 0 && config->initial_leaf_size <= config->leaf_size);
+    assert(config->k >= 0 && config->k <= 1024);
 
     assert(cpu_cores > 0 && numa_cores > 0 &&
            ((numa_cores == 2 && cpu_cores <= 32) || (numa_cores == 1 && cpu_cores <= 16)));

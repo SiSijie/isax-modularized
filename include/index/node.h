@@ -7,6 +7,7 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <pthread.h>
 
 #include "globals.h"
@@ -17,7 +18,7 @@ typedef struct Node {
     SAXWord *sax;
     SAXMask *masks;
 
-    size_t *positions;
+    size_t *ids;
     size_t size;
     size_t capacity;
 
@@ -25,6 +26,11 @@ typedef struct Node {
     struct Node *right;
 } Node;
 
+
 Node *initializeNode(SAXWord *saxWord, SAXMask *saxMask);
+
+void inspectNode(Node *node, size_t *num_series, size_t *num_leaves, size_t *num_roots);
+
+void freeNode(Node *node, bool free_mask, bool free_sax);
 
 #endif //ISAX_NODE_H

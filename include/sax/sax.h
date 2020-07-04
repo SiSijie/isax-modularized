@@ -9,11 +9,17 @@
 #include <pthread.h>
 
 #include "globals.h"
-#include <breakpoints.h>
+#include "breakpoints.h"
 
 
 SAXWord *
 summarizations2SAXs(Value const *summarizations, Value const *const *breakpoints, size_t size, size_t sax_length,
                     unsigned int sax_cardinality, int num_threads);
+
+Value l2SquareSummarization2SAXByMask(size_t sax_length, Value const *summarizations, SAXWord const *sax,
+                                      SAXMask const *masks, Value const *const *breakpoints, Value scale_factor);
+
+Value l2SquareSummarization2SAX8(size_t sax_length, Value const *summarizations, SAXWord const *sax,
+                                 Value const *const *breakpoints, Value scale_factor);
 
 #endif //ISAX_SAX_H

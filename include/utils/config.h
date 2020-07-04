@@ -37,6 +37,10 @@ typedef struct Config {
     size_t leaf_size;
 
     bool use_adhoc_breakpoints;
+    bool exact_search;
+    bool sort_leaves;
+
+    unsigned int k; // kNN
 
     int max_threads;
 

@@ -13,6 +13,8 @@
 #include "config.h"
 #include "index.h"
 #include "index_engine.h"
+#include "query.h"
+#include "query_engine.h"
 
 
 int main(int argc, char **argv) {
@@ -29,9 +31,13 @@ int main(int argc, char **argv) {
     finalizeIndex(index);
     logIndex(index);
 
-    freeIndex(config, index);
-    clog_free(CLOGGER_ID);
+    QuerySet *queries = initializeQuery(config, index);
+    conductQueries(queries, index, config);
 
+    freeIndex(config, index);
+    freeQuery(queries);
     free(config);
+
+    clog_free(CLOGGER_ID);
     return 0;
 }
