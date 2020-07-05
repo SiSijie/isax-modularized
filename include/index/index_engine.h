@@ -9,10 +9,10 @@
 #include <math.h>
 #include <pthread.h>
 
+#include "globals.h"
 #include "index.h"
 #include "clog.h"
 #include "config.h"
-#include "globals.h"
 #include "breakpoints.h"
 #include "paa.h"
 

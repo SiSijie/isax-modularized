@@ -9,6 +9,7 @@
 #include <pthread.h>
 
 #include "globals.h"
+#include "clog.h"
 #include "config.h"
 
 
@@ -58,7 +59,6 @@ static unsigned int const SHIFTED_BITS_BY_MASK[129] = {
 
 Value *getNormalBreakpoints8();
 
-Value **adhocBreakpoints(Value const *summarizations, size_t size, size_t num_segments, unsigned int cardinality,
-                         int num_threads);
+Value **getAdhocBreakpoints8(Value const *summarizations, size_t size, size_t num_segments, int num_threads);
 
 #endif //ISAX_BREAKPOINTS_H

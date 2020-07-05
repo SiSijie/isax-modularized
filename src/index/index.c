@@ -40,6 +40,7 @@ Index *initializeIndex(Config const *config) {
     index->sax_length = config->sax_length;
     index->sax_cardinality = config->sax_cardinality;
     index->database_size = config->database_size;
+    index->num_leaves = 0;
 
 #ifdef FINE_TIMING
     clock_t start_clock = clock();
@@ -101,9 +102,8 @@ Index *initializeIndex(Config const *config) {
 #endif
 
     if (config->use_adhoc_breakpoints) {
-        index->breakpoints = (Value const *const *) adhocBreakpoints(index->summarizations, config->database_size,
-                                                                     config->sax_length, config->sax_cardinality,
-                                                                     config->max_threads);
+        index->breakpoints = (Value const *const *) getAdhocBreakpoints8(index->summarizations, config->database_size,
+                                                                         config->sax_length, config->max_threads);
     } else {
         Value **breakpoints = malloc(sizeof(Value *) * config->sax_length);
         Value *normal_breakpoints = getNormalBreakpoints8();
@@ -205,14 +205,11 @@ void freeIndex(Config const *config, Index *index) {
 
 
 void logIndex(Index *index) {
-    clog_info(CLOG(CLOGGER_ID), "index - series %d to SAX %d (cardinality %d)", index->series_length,
-              index->sax_length, index->sax_cardinality);
-
-    size_t num_series = 0, num_leaves = 0, num_roots = 0;
+    size_t num_series = 0, num_roots = 0;
     for (unsigned int i = 0; i < index->roots_size; ++i) {
-        inspectNode(index->roots[i], &num_series, &num_leaves, &num_roots);
+        inspectNode(index->roots[i], &num_series, &index->num_leaves, &num_roots);
     }
 
-    clog_info(CLOG(CLOGGER_ID), "index - %d / %d series in %d leaves from %d / %d roots", num_series,
-              index->database_size, num_leaves, num_roots, index->roots_size);
+    clog_info(CLOG(CLOGGER_ID), "index - %d series in %d leaves from %d / %d roots", num_series, index->num_leaves,
+              num_roots, index->roots_size);
 }

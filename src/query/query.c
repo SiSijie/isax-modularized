@@ -122,6 +122,13 @@ int checkNUpdateBSF(Answer *answer, Value distance) {
         return -1;
     }
 
+#ifdef PROFILING
+    pthread_mutex_lock(log_lock_profiling);
+    clog_info(CLOG(CLOGGER_ID), "query %lu - updated BSF = %f at %lu calculated / %lu visited", query_id_profiling,
+              distance, calcuated_series_counter_profiling, visited_series_counter_profiling);
+    pthread_mutex_unlock(log_lock_profiling);
+#endif
+
     return 0;
 }
 

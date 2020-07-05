@@ -32,6 +32,10 @@ void inspectNode(Node *node, size_t *num_series, size_t *num_leaves, size_t *num
                 *num_roots += 1;
             }
 
+#ifdef PROFILING
+            clog_info(CLOG(CLOGGER_ID), "index - node %lu = %lu", *num_leaves, node->size);
+#endif
+
             *num_leaves += 1;
             *num_series += node->size;
         } else if (node->size == 0 && node->left != NULL) {

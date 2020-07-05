@@ -10,6 +10,7 @@
 
 #include "globals.h"
 
+
 Value *piecewiseAggregate(Value const *values, size_t size, size_t series_length, size_t summarization_length,
                           int num_threads);
 

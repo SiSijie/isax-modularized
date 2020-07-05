@@ -10,6 +10,7 @@
 
 #include "globals.h"
 
+
 Value l2Square(size_t length, Value const *left, Value const *right);
 
 Value l2SquareSIMD(size_t length, Value const *left, Value const *right);

@@ -7,10 +7,13 @@
 
 #include <time.h>
 
+#include "globals.h"
 #include "config.h"
 #include "index.h"
 #include "distance.h"
 #include "query.h"
+#include "clog.h"
+
 
 void conductQueries(QuerySet const *querySet, Index const *index, Config const *config);
 

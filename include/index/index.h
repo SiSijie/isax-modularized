@@ -7,9 +7,9 @@
 
 #include <time.h>
 
+#include "globals.h"
 #include "node.h"
 #include "config.h"
-#include "globals.h"
 #include "clog.h"
 #include "breakpoints.h"
 #include "paa.h"
@@ -20,6 +20,7 @@ typedef struct Index {
     Node **roots;
 
     size_t roots_size;
+    size_t num_leaves;
 
     Value const *values;
 

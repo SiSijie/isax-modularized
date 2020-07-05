@@ -2,11 +2,9 @@
 // Created by Qitong Wang on 2020/6/28.
 //
 
-#define FINE_TIMING
-//#define TIMING
-
 #include <stdio.h>
 #include <time.h>
+#include <pthread.h>
 
 #ifndef CLOG_MAIN
 #define CLOG_MAIN
@@ -46,6 +44,11 @@ int main(int argc, char **argv) {
 
     logIndex(index);
 
+#ifdef PROFILING
+    log_lock_profiling = malloc(sizeof(pthread_mutex_t));
+    assert(pthread_mutex_init(log_lock_profiling, NULL) == 0);
+#endif
+
 #ifdef TIMING
     start_clock = clock();
 #endif
@@ -55,6 +58,11 @@ int main(int argc, char **argv) {
 
 #ifdef TIMING
     clog_info(CLOG(CLOGGER_ID), "query - overall = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+#endif
+
+#ifdef PROFILING
+    pthread_mutex_destroy(log_lock_profiling);
+    free(log_lock_profiling);
 #endif
 
     freeIndex(config, index);

@@ -11,6 +11,7 @@
 #include <pthread.h>
 
 #include "globals.h"
+#include "clog.h"
 
 
 typedef struct Node {

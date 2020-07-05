@@ -6,12 +6,28 @@
 #define ISAX_GLOBALS_H
 
 #include <float.h>
+#include <stdlib.h>
+#include <pthread.h>
 
+
+#define FINE_TIMING
+//#define TIMING
 
 #ifdef FINE_TIMING
 #ifndef TIMING
 #define TIMING
 #endif
+#endif
+
+
+#define PROFILING
+
+#ifdef PROFILING
+size_t visited_leaves_counter_profiling;
+size_t visited_series_counter_profiling;
+size_t calcuated_series_counter_profiling;
+pthread_mutex_t *log_lock_profiling;
+size_t query_id_profiling;
 #endif
 
 
