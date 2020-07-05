@@ -163,6 +163,10 @@ void buildIndex(Config const *config, Index *index) {
     pthread_t threads[num_threads];
     IndexCache indexCache[num_threads];
 
+#ifdef FINE_TIMING
+    clock_t start_clock = clock();
+#endif
+
     for (int i = 0; i < num_threads; ++i) {
         indexCache[i].index = index;
         indexCache[i].leaf_size = config->leaf_size;
@@ -176,4 +180,8 @@ void buildIndex(Config const *config, Index *index) {
     for (int i = 0; i < num_threads; ++i) {
         pthread_join(threads[i], NULL);
     }
+
+#ifdef FINE_TIMING
+    clog_info(CLOG(CLOGGER_ID), "index - build = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+#endif
 }

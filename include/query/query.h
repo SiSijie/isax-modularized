@@ -5,6 +5,7 @@
 #ifndef ISAX_QUERY_H
 #define ISAX_QUERY_H
 
+#include <time.h>
 #include <float.h>
 #include <stdlib.h>
 #include <pthread.h>

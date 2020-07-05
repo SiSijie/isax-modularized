@@ -9,7 +9,6 @@
 #define _GNU_SOURCE
 
 #include <sched.h>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
@@ -17,6 +16,9 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <assert.h>
+
+#include "globals.h"
+#include "clog.h"
 
 
 typedef struct Config {
@@ -42,6 +44,8 @@ typedef struct Config {
 
     unsigned int k; // kNN
 
+    int cpu_cores;
+    int numa_cores;
     int max_threads;
 
     size_t index_block_size;
@@ -49,5 +53,7 @@ typedef struct Config {
 
 
 Config *initializeConfig(int argc, char **argv);
+
+void logConfig(Config const *config);
 
 #endif //ISAX_CONFIG_H

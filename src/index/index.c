@@ -41,6 +41,10 @@ Index *initializeIndex(Config const *config) {
     index->sax_cardinality = config->sax_cardinality;
     index->database_size = config->database_size;
 
+#ifdef FINE_TIMING
+    clock_t start_clock = clock();
+#endif
+
     // initialize first-layer (root) nodes of (1 bit * sax_length) SAX
     index->roots_size = 1u << (unsigned int) config->sax_length;
     index->roots = malloc(sizeof(Node *) * index->roots_size);
@@ -53,12 +57,24 @@ Index *initializeIndex(Config const *config) {
                                          root_masks);
     }
 
+#ifdef FINE_TIMING
+    clog_info(CLOG(CLOGGER_ID), "index - initialize roots = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+
+    start_clock = clock();
+#endif
+
     Value *values = malloc(sizeof(Value) * config->series_length * config->database_size);
     FILE *file_values = fopen(config->database_filepath, "rb");
     fread(values, sizeof(Value), config->series_length * config->database_size, file_values);
     fclose(file_values);
 
     index->values = (Value const *) values;
+
+#ifdef FINE_TIMING
+    clog_info(CLOG(CLOGGER_ID), "index - load series = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+
+    start_clock = clock();
+#endif
 
     if (config->database_summarization_filepath != NULL) {
         Value *summarizations = malloc(sizeof(Value) * config->sax_length * config->database_size);
@@ -72,6 +88,17 @@ Index *initializeIndex(Config const *config) {
                                                                    config->series_length, config->sax_length,
                                                                    config->max_threads);
     }
+
+#ifdef FINE_TIMING
+    char *method4summarizations = "load";
+    if (config->database_summarization_filepath == NULL) {
+        method4summarizations = "calculate";
+    }
+    clog_info(CLOG(CLOGGER_ID), "index - %s summarizations = %lums", method4summarizations,
+              (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+
+    start_clock = clock();
+#endif
 
     if (config->use_adhoc_breakpoints) {
         index->breakpoints = (Value const *const *) adhocBreakpoints(index->summarizations, config->database_size,
@@ -88,8 +115,23 @@ Index *initializeIndex(Config const *config) {
         index->breakpoints = (Value const *const *) breakpoints;
     }
 
+#ifdef FINE_TIMING
+    char *method4breakpoints = "normal";
+    if (config->use_adhoc_breakpoints) {
+        method4breakpoints = "adhoc";
+    }
+    clog_info(CLOG(CLOGGER_ID), "index - load %s breakpoints = %lums", method4breakpoints,
+              (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+
+    start_clock = clock();
+#endif
+
     index->saxs = (SAXWord const *) summarizations2SAXs(index->summarizations, index->breakpoints, index->database_size,
                                                         index->sax_length, index->sax_cardinality, config->max_threads);
+
+#ifdef FINE_TIMING
+    clog_info(CLOG(CLOGGER_ID), "index - calculate SAXs = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+#endif
 
     return index;
 }
@@ -111,6 +153,10 @@ void truncateNode(Node *node) {
 
 
 void finalizeIndex(Index *index) {
+#ifdef FINE_TIMING
+    clock_t start_clock = clock();
+#endif
+
     free((Value *) index->summarizations);
 
     for (unsigned int i = 0; i < index->roots_size; ++i) {
@@ -123,6 +169,10 @@ void finalizeIndex(Index *index) {
     for (unsigned int i = 0; i < index->roots_size; ++i) {
         truncateNode(index->roots[i]);
     }
+
+#ifdef FINE_TIMING
+    clog_info(CLOG(CLOGGER_ID), "index - finalize = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+#endif
 }
 
 
@@ -155,14 +205,14 @@ void freeIndex(Config const *config, Index *index) {
 
 
 void logIndex(Index *index) {
-    clog_debug(CLOG(CLOGGER_ID), "series %d --> SAX %d (cardinality %d)", index->series_length, index->sax_length,
-               index->sax_cardinality);
+    clog_info(CLOG(CLOGGER_ID), "index - series %d to SAX %d (cardinality %d)", index->series_length,
+              index->sax_length, index->sax_cardinality);
 
     size_t num_series = 0, num_leaves = 0, num_roots = 0;
     for (unsigned int i = 0; i < index->roots_size; ++i) {
         inspectNode(index->roots[i], &num_series, &num_leaves, &num_roots);
     }
 
-    clog_debug(CLOG(CLOGGER_ID), "%d / %d roots", num_roots, index->roots_size);
-    clog_debug(CLOG(CLOGGER_ID), "%d / %d series in %d leaves", num_series, index->database_size, num_leaves);
+    clog_info(CLOG(CLOGGER_ID), "index - %d / %d series in %d leaves from %d / %d roots", num_series,
+              index->database_size, num_leaves, num_roots, index->roots_size);
 }

@@ -5,6 +5,8 @@
 #ifndef ISAX_INDEX_H
 #define ISAX_INDEX_H
 
+#include <time.h>
+
 #include "node.h"
 #include "config.h"
 #include "globals.h"

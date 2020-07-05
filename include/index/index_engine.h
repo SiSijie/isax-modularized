@@ -5,6 +5,7 @@
 #ifndef ISAX_INDEX_ENGINE_H
 #define ISAX_INDEX_ENGINE_H
 
+#include <time.h>
 #include <math.h>
 #include <pthread.h>
 

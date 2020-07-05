@@ -5,6 +5,8 @@
 #ifndef ISAX_QUERY_ENGINE_H
 #define ISAX_QUERY_ENGINE_H
 
+#include <time.h>
+
 #include "config.h"
 #include "index.h"
 #include "distance.h"

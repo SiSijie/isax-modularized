@@ -123,16 +123,25 @@ void qSortBy(Node **nodes, Value *distances, int first, int last) {
 
 
 void conductQueries(QuerySet const *querySet, Index const *index, Config const *config) {
+#ifdef FINE_TIMING
+    clock_t start_clock = clock();
+#endif
+
     size_t num_leaves = 0;
     for (size_t j = 0, num_series = 0, num_roots = 0; j < index->roots_size; ++j) {
         inspectNode(index->roots[j], &num_series, &num_leaves, &num_roots);
     }
+
 
     Node **leaves = malloc(sizeof(Node *) * num_leaves);
     num_leaves = 0;
     for (size_t j = 0; j < index->roots_size; ++j) {
         enqueueLeaf(index->roots[j], leaves, &num_leaves);
     }
+
+#ifdef FINE_TIMING
+    clog_info(CLOG(CLOGGER_ID), "query - fetch leaves = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+#endif
 
     Value *leaf_distances = malloc(sizeof(Value) * num_leaves);
     Value scale_factor = (Value) config->series_length / (Value) config->sax_length;
@@ -143,6 +152,10 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
         Value const *query_values = querySet->values + config->series_length * i;
         Value const *query_summarization = querySet->summarizations + config->sax_length * i;
         SAXWord const *query_sax = querySet->saxs + config->sax_length * i;
+
+#ifdef FINE_TIMING
+        start_clock = clock();
+#endif
 
         size_t rootID = rootSAX2ID(query_sax, config->sax_length, config->sax_cardinality);
         Node *node = index->roots[rootID];
@@ -157,11 +170,21 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
             }
         }
 
+#ifdef FINE_TIMING
+        clog_info(CLOG(CLOGGER_ID), "query %lu - approximate search = %lums", i,
+                  (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+#endif
+
         if (config->exact_search && !(answer->size == answer->k && getBSF(answer) == 0)) {
             logAnswer(querySet->query_size + i, answer);
 
             pthread_t threads[config->max_threads];
             QueryCache queryCache[config->max_threads];
+
+
+#ifdef FINE_TIMING
+            start_clock = clock();
+#endif
 
             for (size_t j = 0; j < num_leaves; ++j) {
                 if (leaves[j] == node) {
@@ -176,6 +199,13 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
             if (config->sort_leaves) {
                 qSortBy(leaves, leaf_distances, 0, (int) (num_leaves - 1));
             }
+
+#ifdef FINE_TIMING
+            clog_info(CLOG(CLOGGER_ID), "query %lu - calculate leaves distances = %lums", i,
+                      (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+
+            start_clock = clock();
+#endif
 
             for (size_t shared_leaf_id = 0, j = 0; j < config->max_threads; ++j) {
                 queryCache[j].answer = answer;
@@ -199,6 +229,11 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
                 pthread_join(threads[j], NULL);
             }
         }
+
+#ifdef FINE_TIMING
+        clog_info(CLOG(CLOGGER_ID), "query %lu - exact search = %lums", i,
+                  (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+#endif
 
         logAnswer(i, answer);
         freeAnswer(answer);

@@ -10,12 +10,22 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
 
     queries->query_size = config->query_size;
 
+#ifdef FINE_TIMING
+    clock_t start_clock = clock();
+#endif
+
     Value *values = malloc(sizeof(Value) * config->series_length * config->query_size);
     FILE *file_values = fopen(config->query_filepath, "rb");
     fread(values, sizeof(Value), config->series_length * config->query_size, file_values);
     fclose(file_values);
 
     queries->values = (Value const *) values;
+
+#ifdef FINE_TIMING
+    clog_info(CLOG(CLOGGER_ID), "query - load series = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+
+    start_clock = clock();
+#endif
 
     if (config->query_summarization_filepath != NULL) {
         Value *summarizations = malloc(sizeof(Value) * config->sax_length * config->query_size);
@@ -30,9 +40,24 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
                                                                      config->max_threads);
     }
 
+#ifdef FINE_TIMING
+    char *method4summarizations = "load";
+    if (config->database_summarization_filepath == NULL) {
+        method4summarizations = "calculate";
+    }
+    clog_info(CLOG(CLOGGER_ID), "query - %s summarizations = %lums", method4summarizations,
+              (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+
+    start_clock = clock();
+#endif
+
     queries->saxs = (SAXWord const *) summarizations2SAXs(queries->summarizations, index->breakpoints,
                                                           queries->query_size, config->sax_length,
                                                           config->sax_cardinality, config->max_threads);
+
+#ifdef FINE_TIMING
+    clog_info(CLOG(CLOGGER_ID), "query - calculate SAXs = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+#endif
 
     return queries;
 }
@@ -126,11 +151,11 @@ void freeAnswer(Answer *answer) {
 
 void logAnswer(size_t query_id, Answer *answer) {
     for (size_t i = 0; i < answer->size; ++i) {
-        clog_info(CLOG(CLOGGER_ID), "%lu / %lu for %lu = %f", i, answer->k, query_id, answer->distances[i]);
+        clog_info(CLOG(CLOGGER_ID), "query %lu - %lu / %luNN = %f", query_id, i, answer->k, answer->distances[i]);
     }
 }
 
 
-Value getBSF(Answer * answer) {
+Value getBSF(Answer *answer) {
     return answer->distances[0];
 }

@@ -8,7 +8,15 @@
 #include <float.h>
 
 
+#ifdef FINE_TIMING
+#ifndef TIMING
+#define TIMING
+#endif
+#endif
+
+
 #define CLOGGER_ID 0
+
 
 typedef float Value;
 // TODO only supports sax_cardinality <= 8

@@ -83,7 +83,8 @@ Config *initializeConfig(int argc, char **argv) {
 
     config->k = 1;
 
-    int cpu_cores = 1, numa_cores = 1;
+    config->cpu_cores = 1;
+    config->numa_cores = 1;
 
     char *string_parts;
     int opt, longindex = 0;
@@ -114,7 +115,7 @@ Config *initializeConfig(int argc, char **argv) {
                 config->sax_cardinality = (unsigned int) strtol(optarg, &string_parts, 10);
                 break;
             case 9:
-                cpu_cores = (int) strtol(optarg, &string_parts, 10);
+                config->cpu_cores = (int) strtol(optarg, &string_parts, 10);
                 break;
             case 10:
                 config->log_filepath = optarg;
@@ -126,7 +127,7 @@ Config *initializeConfig(int argc, char **argv) {
                 config->use_adhoc_breakpoints = true;
                 break;
             case 13:
-                numa_cores = (int) strtol(optarg, &string_parts, 10);
+                config->numa_cores = (int) strtol(optarg, &string_parts, 10);
                 break;
             case 14:
                 config->index_block_size = (size_t) strtoull(optarg, &string_parts, 10);
@@ -161,9 +162,38 @@ Config *initializeConfig(int argc, char **argv) {
     assert(config->leaf_size > 0 && config->initial_leaf_size > 0 && config->initial_leaf_size <= config->leaf_size);
     assert(config->k >= 0 && config->k <= 1024);
 
-    assert(cpu_cores > 0 && numa_cores > 0 &&
-           ((numa_cores == 2 && cpu_cores <= 32) || (numa_cores == 1 && cpu_cores <= 16)));
+    assert(config->cpu_cores > 0 && config->numa_cores > 0 &&
+           ((config->numa_cores == 2 && config->cpu_cores <= 32) ||
+            (config->numa_cores == 1 && config->cpu_cores <= 16)));
 
-    initializeThreads(config, cpu_cores, numa_cores);
+    initializeThreads(config, config->cpu_cores, config->numa_cores);
     return config;
+}
+
+
+void logConfig(Config const *config) {
+    clog_info(CLOG(CLOGGER_ID), "config - database_filepath = %s", config->database_filepath);
+    clog_info(CLOG(CLOGGER_ID), "config - database_summarization_filepath = %s",
+              config->database_summarization_filepath);
+    clog_info(CLOG(CLOGGER_ID), "config - query_filepath = %s", config->query_filepath);
+    clog_info(CLOG(CLOGGER_ID), "config - query_summarization_filepath = %s", config->query_summarization_filepath);
+    clog_info(CLOG(CLOGGER_ID), "config - log_filepath = %s", config->log_filepath);
+
+    clog_info(CLOG(CLOGGER_ID), "config - series_length = %lu", config->series_length);
+    clog_info(CLOG(CLOGGER_ID), "config - database_size = %lu", config->database_size);
+    clog_info(CLOG(CLOGGER_ID), "config - query_size = %lu", config->query_size);
+    clog_info(CLOG(CLOGGER_ID), "config - sax_length = %lu", config->sax_length);
+    clog_info(CLOG(CLOGGER_ID), "config - sax_cardinality = %d", config->sax_cardinality);
+    clog_info(CLOG(CLOGGER_ID), "config - adhoc_breakpoints = %d", config->use_adhoc_breakpoints);
+
+    clog_info(CLOG(CLOGGER_ID), "config - exact_search = %d", config->exact_search);
+    clog_info(CLOG(CLOGGER_ID), "config - k = %d", config->k);
+
+    clog_info(CLOG(CLOGGER_ID), "config - leaf_size = %lu", config->leaf_size);
+    clog_info(CLOG(CLOGGER_ID), "config - initial_leaf_size = %lu", config->initial_leaf_size);
+    clog_info(CLOG(CLOGGER_ID), "config - sort_leaves = %d", config->sort_leaves);
+
+    clog_info(CLOG(CLOGGER_ID), "config - cpu_cores = %d", config->cpu_cores);
+    clog_info(CLOG(CLOGGER_ID), "config - numa_cores = %d", config->numa_cores);
+    clog_info(CLOG(CLOGGER_ID), "config - index_block_size = %lu", config->index_block_size);
 }
