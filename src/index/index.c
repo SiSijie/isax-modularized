@@ -125,6 +125,7 @@ void finalizeIndex(Index *index) {
     }
 }
 
+
 void freeIndex(Config const *config, Index *index) {
     free((Value *) index->values);
     free((SAXWord *) index->saxs);

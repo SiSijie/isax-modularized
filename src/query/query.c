@@ -34,9 +34,6 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
                                                           queries->query_size, config->sax_length,
                                                           config->sax_cardinality, config->max_threads);
 
-//    free((Value *) queries->summarizations);
-//    queries->summarizations = NULL;
-
     return queries;
 }
 

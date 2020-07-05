@@ -29,22 +29,23 @@ void *queryThread(void *cache) {
     while ((leaf_id = __sync_fetch_and_add(queryCache->shared_leaf_id, 1)) < queryCache->num_leaves) {
         Node const *const leaf = queryCache->leaves[leaf_id];
 
+        // TODO only using local_bsf suffers from the problem that approximate nearest neighbours < k and never updated
         pthread_rwlock_rdlock(queryCache->answer->lock);
         Value local_bsf = getBSF(queryCache->answer);
         pthread_rwlock_unlock(queryCache->answer->lock);
 
-        // TODO confirm ignoring equivalent cases wouldn't cause problem
-        if (VALUE_L(queryCache->leaf_distances[leaf_id], local_bsf)) {
+        if (VALUE_G(local_bsf, queryCache->leaf_distances[leaf_id])) {
             for (size_t i = 0; i < leaf->size; ++i) {
-                if (VALUE_L(l2SquareSummarization2SAX8(queryCache->index->sax_length, queryCache->query_summarization,
+                if (VALUE_G(local_bsf,
+                            l2SquareSummarization2SAX8(queryCache->index->sax_length, queryCache->query_summarization,
                                                        queryCache->index->saxs +
                                                        leaf->ids[i] * queryCache->index->sax_length,
-                                                       queryCache->index->breakpoints, queryCache->scale_factor),
-                            local_bsf)) {
-                    Value local_distance = l2Square(queryCache->index->series_length, queryCache->query_values,
-                                                    queryCache->index->values +
-                                                    leaf->ids[i] * queryCache->index->series_length);
-                    if (VALUE_L(local_distance, local_bsf)) {
+                                                       queryCache->index->breakpoints, queryCache->scale_factor))) {
+                    Value local_distance = l2SquareEarlySIMD(queryCache->index->series_length, queryCache->query_values,
+                                                             queryCache->index->values +
+                                                             leaf->ids[i] * queryCache->index->series_length,
+                                                             local_bsf);
+                    if (VALUE_G(local_bsf, local_distance)) {
                         pthread_rwlock_wrlock(queryCache->answer->lock);
 
                         checkNUpdateBSF(queryCache->answer, local_distance);
@@ -122,6 +123,20 @@ void qSortBy(Node **nodes, Value *distances, int first, int last) {
 
 
 void conductQueries(QuerySet const *querySet, Index const *index, Config const *config) {
+    size_t num_leaves = 0;
+    for (size_t j = 0, num_series = 0, num_roots = 0; j < index->roots_size; ++j) {
+        inspectNode(index->roots[j], &num_series, &num_leaves, &num_roots);
+    }
+
+    Node **leaves = malloc(sizeof(Node *) * num_leaves);
+    num_leaves = 0;
+    for (size_t j = 0; j < index->roots_size; ++j) {
+        enqueueLeaf(index->roots[j], leaves, &num_leaves);
+    }
+
+    Value *leaf_distances = malloc(sizeof(Value) * num_leaves);
+    Value scale_factor = (Value) config->series_length / (Value) config->sax_length;
+
     for (size_t i = 0; i < querySet->query_size; ++i) {
         Answer *answer = initializeAnswer(config);
 
@@ -137,40 +152,25 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
             }
 
             for (size_t j = 0; j < node->size; ++j) {
-                checkNUpdateBSF(answer, l2Square(config->series_length, query_values,
-                                                 index->values + config->series_length * node->ids[j]));
+                checkNUpdateBSF(answer, l2SquareSIMD(config->series_length, query_values,
+                                                     index->values + config->series_length * node->ids[j]));
             }
         }
 
         if (config->exact_search && !(answer->size == answer->k && getBSF(answer) == 0)) {
             logAnswer(querySet->query_size + i, answer);
 
-            Value localBSF = getBSF(answer);
-
             pthread_t threads[config->max_threads];
             QueryCache queryCache[config->max_threads];
 
-            size_t num_leaves = 0;
-            for (size_t j = 0, num_series = 0, num_roots = 0; j < index->roots_size; ++j) {
-                if (j != rootID) {
-                    inspectNode(index->roots[j], &num_series, &num_leaves, &num_roots);
-                }
-            }
-
-            Node **leaves = malloc(sizeof(Node *) * num_leaves);
-            num_leaves = 0;
-            for (size_t j = 0; j < index->roots_size; ++j) {
-                if (j != rootID) {
-                    enqueueLeaf(index->roots[j], leaves, &num_leaves);
-                }
-            }
-
-            Value *leaf_distances = malloc(sizeof(Value) * num_leaves);
-            Value scale_factor = (Value) config->series_length / (Value) config->sax_length;
             for (size_t j = 0; j < num_leaves; ++j) {
-                leaf_distances[j] = l2SquareSummarization2SAXByMask(config->sax_length, query_summarization,
-                                                                    leaves[j]->sax, leaves[j]->masks,
-                                                                    index->breakpoints, scale_factor);
+                if (leaves[j] == node) {
+                    leaf_distances[j] = FLT_MAX;
+                } else {
+                    leaf_distances[j] = l2SquareSummarization2SAXByMask(config->sax_length, query_summarization,
+                                                                        leaves[j]->sax, leaves[j]->masks,
+                                                                        index->breakpoints, scale_factor);
+                }
             }
 
             if (config->sort_leaves) {
@@ -203,4 +203,7 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
         logAnswer(i, answer);
         freeAnswer(answer);
     }
+
+    free(leaves);
+    free(leaf_distances);
 }

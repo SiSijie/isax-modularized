@@ -116,7 +116,7 @@ Value l2SquareValue2SAXWord(Value value, SAXWord sax_word, Value const *breakpoi
     return 0;
 }
 
-// TODO SIMD
+
 Value l2SquareSummarization2SAXByMask(size_t sax_length, Value const *summarizations, SAXWord const *sax,
                                       SAXMask const *masks, Value const *const *breakpoints, Value scale_factor) {
     Value sum = 0;
@@ -130,7 +130,6 @@ Value l2SquareSummarization2SAXByMask(size_t sax_length, Value const *summarizat
 }
 
 
-// TODO SIMD
 Value l2SquareSummarization2SAX8(size_t sax_length, Value const *summarizations, SAXWord const *sax,
                                  Value const *const *breakpoints, Value scale_factor) {
     Value sum = 0;

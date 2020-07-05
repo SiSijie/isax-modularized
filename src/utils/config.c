@@ -151,7 +151,7 @@ Config *initializeConfig(int argc, char **argv) {
         }
     }
 
-    assert(config->series_length % config->sax_length == 0);
+    assert(config->series_length % config->sax_length == 0 && config->series_length % 8 == 0);
     assert(config->sax_length > 0 && config->sax_length <= 16);
     assert(config->sax_cardinality == 8);
     assert(config->database_size > 0);
