@@ -8,16 +8,16 @@
 typedef struct IndexCache {
     Index *index;
 
-    size_t *shared_start_id;
-    size_t block_size;
+    unsigned int *shared_start_id;
+    unsigned int block_size;
 
-    size_t initial_leaf_size;
-    size_t leaf_size;
+    unsigned int initial_leaf_size;
+    unsigned int leaf_size;
 } IndexCache;
 
 
-Node *route(Node const *parent, SAXWord const *sax, size_t num_segments) {
-    for (size_t i = 0; i < num_segments; ++i) {
+Node *route(Node const *parent, SAXWord const *sax, unsigned int num_segments) {
+    for (unsigned int i = 0; i < num_segments; ++i) {
         if (parent->right->masks[i] != parent->masks[i]) {
             if ((parent->right->masks[i] & sax[i]) == 0u) {
                 return parent->left;
@@ -32,40 +32,40 @@ Node *route(Node const *parent, SAXWord const *sax, size_t num_segments) {
 }
 
 
-void insertNode(Node *leaf, size_t id, size_t initial_leaf_size, size_t leaf_size) {
+void insertNode(Node *leaf, unsigned int id, unsigned int initial_leaf_size, unsigned int leaf_size) {
     if (leaf->capacity == 0) {
-        leaf->ids = malloc(sizeof(size_t) * (leaf->capacity = initial_leaf_size));
+        leaf->ids = malloc(sizeof(unsigned int) * (leaf->capacity = initial_leaf_size));
     } else if (leaf->size == leaf->capacity) {
         if ((leaf->capacity *= 2) > leaf_size) {
             leaf->capacity = leaf_size;
         }
-        leaf->ids = realloc(leaf->ids, sizeof(size_t) * leaf->capacity);
+        leaf->ids = realloc(leaf->ids, sizeof(unsigned int) * leaf->capacity);
     }
 
     leaf->ids[leaf->size++] = id;
 }
 
 
-void splitNode(Index *index, Node *parent, SAXWord const *sax, size_t num_segments) {
-    size_t segment_to_split = -1;
-    int smallest_difference = parent->size;
+void splitNode(Index *index, Node *parent, unsigned int num_segments) {
+    unsigned int segment_to_split = -1;
+    int smallest_difference = (int) parent->size;
 
-    for (size_t i = 0; i < num_segments; ++i) {
-        if ((parent->masks[i] & 1u) == 0) {
-            int ones = 0, zeros = 0;
+    for (unsigned int i = 0; i < num_segments; ++i) {
+        if ((parent->masks[i] & 1u) == 0u) {
+            int differences = 0;
             SAXMask next_bit = parent->masks[i] >> 1u;
 
-            for (size_t j = 0; j < parent->size; ++j) {
-                if ((index->saxs[index->sax_length * parent->ids[j] + i] & next_bit) == 0) {
-                    zeros += 1;
+            for (unsigned int j = 0; j < parent->size; ++j) {
+                if ((index->saxs[index->sax_length * parent->ids[j] + i] & next_bit) == 0u) {
+                    differences -= 1;
                 } else {
-                    ones += 1;
+                    differences += 1;
                 }
             }
 
-            if (ones - zeros < smallest_difference && zeros - ones < smallest_difference) {
+            if (abs(differences) < smallest_difference) {
                 segment_to_split = i;
-                smallest_difference = abs(ones - zeros);
+                smallest_difference = abs(differences);
             }
         }
     }
@@ -93,8 +93,8 @@ void splitNode(Index *index, Node *parent, SAXWord const *sax, size_t num_segmen
     parent->left = initializeNode(parent->sax, child_masks);
     parent->right = initializeNode(right_sax, child_masks);
 
-    for (size_t i = 0; i < parent->size; ++i) {
-        if ((index->saxs[index->sax_length * parent->ids[i] + segment_to_split] & child_masks[segment_to_split]) == 0) {
+    for (unsigned int i = 0; i < parent->size; ++i) {
+        if ((index->saxs[index->sax_length * parent->ids[i] + segment_to_split] & child_masks[segment_to_split]) == 0u) {
             insertNode(parent->left, parent->ids[i], parent->capacity, parent->capacity);
         } else {
             insertNode(parent->right, parent->ids[i], parent->capacity, parent->capacity);
@@ -113,16 +113,16 @@ void *buildIndexThread(void *cache) {
     IndexCache *indexCache = (IndexCache *) cache;
     Index *index = indexCache->index;
 
-    size_t start_id;
+    unsigned int start_id;
     while ((start_id = __sync_fetch_and_add(indexCache->shared_start_id, indexCache->block_size)) <
            index->database_size) {
 
-        size_t stop_id = start_id + indexCache->block_size;
+        unsigned int stop_id = start_id + indexCache->block_size;
         if (stop_id > index->database_size) {
             stop_id = index->database_size;
         }
 
-        for (size_t i = start_id; i < stop_id; ++i) {
+        for (unsigned int i = start_id; i < stop_id; ++i) {
             SAXWord const *sax = index->saxs + index->sax_length * i;
             Node *node = index->roots[rootSAX2ID(sax, index->sax_length, index->sax_cardinality)];
 
@@ -132,7 +132,7 @@ void *buildIndexThread(void *cache) {
                 Node *parent = node;
 
                 if (node->size == indexCache->leaf_size) {
-                    splitNode(index, parent, sax, index->sax_length);
+                    splitNode(index, parent, index->sax_length);
                 }
 
                 node = route(parent, sax, index->sax_length);
@@ -152,13 +152,11 @@ void *buildIndexThread(void *cache) {
 
 
 void buildIndex(Config const *config, Index *index) {
-    int num_threads = config->max_threads;
-    int num_blocks = (int) ceil((double) config->database_size / (double) config->index_block_size);
+    unsigned int num_threads = config->max_threads;
+    unsigned int num_blocks = (int) ceil((double) config->database_size / (double) config->index_block_size);
     if (num_threads > num_blocks) {
         num_threads = num_blocks;
     }
-
-    size_t shared_start_id = 0;
 
     pthread_t threads[num_threads];
     IndexCache indexCache[num_threads];
@@ -167,7 +165,7 @@ void buildIndex(Config const *config, Index *index) {
     clock_t start_clock = clock();
 #endif
 
-    for (int i = 0; i < num_threads; ++i) {
+    for (unsigned int shared_start_id = 0, i = 0; i < num_threads; ++i) {
         indexCache[i].index = index;
         indexCache[i].leaf_size = config->leaf_size;
         indexCache[i].initial_leaf_size = config->initial_leaf_size;
@@ -177,7 +175,7 @@ void buildIndex(Config const *config, Index *index) {
         pthread_create(&threads[i], NULL, buildIndexThread, (void *) &indexCache[i]);
     }
 
-    for (int i = 0; i < num_threads; ++i) {
+    for (unsigned int i = 0; i < num_threads; ++i) {
         pthread_join(threads[i], NULL);
     }
 

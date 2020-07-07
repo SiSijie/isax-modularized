@@ -408,10 +408,10 @@ clog_set_fmt(int id, const char *fmt)
 
 /* Internal functions */
 
-size_t
-_clog_append_str(char **dst, char *orig_buf, const char *src, size_t cur_size)
+unsigned int
+_clog_append_str(char **dst, char *orig_buf, const char *src, unsigned int cur_size)
 {
-    size_t new_size = cur_size;
+    unsigned int new_size = cur_size;
 
     while (strlen(*dst) + strlen(src) >= new_size) {
         new_size *= 2;
@@ -429,8 +429,8 @@ _clog_append_str(char **dst, char *orig_buf, const char *src, size_t cur_size)
     return new_size;
 }
 
-size_t
-_clog_append_int(char **dst, char *orig_buf, long int d, size_t cur_size)
+unsigned int
+_clog_append_int(char **dst, char *orig_buf, long int d, unsigned int cur_size)
 {
     char buf[40]; /* Enough for 128-bit decimal */
     if (snprintf(buf, 40, "%ld", d) >= 40) {
@@ -439,12 +439,12 @@ _clog_append_int(char **dst, char *orig_buf, long int d, size_t cur_size)
     return _clog_append_str(dst, orig_buf, buf, cur_size);
 }
 
-size_t
+unsigned int
 _clog_append_time(char **dst, char *orig_buf, struct tm *lt,
-                  const char *fmt, size_t cur_size)
+                  const char *fmt, unsigned int cur_size)
 {
     char buf[CLOG_DATETIME_LENGTH];
-    size_t result = strftime(buf, CLOG_DATETIME_LENGTH, fmt, lt);
+    unsigned int result = strftime(buf, CLOG_DATETIME_LENGTH, fmt, lt);
 
     if (result > 0) {
         return _clog_append_str(dst, orig_buf, buf, cur_size);
@@ -470,15 +470,15 @@ _clog_basename(const char *path)
 }
 
 char *
-_clog_format(const struct clog *logger, char buf[], size_t buf_size,
+_clog_format(const struct clog *logger, char buf[], unsigned int buf_size,
              const char *sfile, int sline, const char *level,
              const char *message)
 {
-    size_t cur_size = buf_size;
+    unsigned int cur_size = buf_size;
     char *result = buf;
     enum { NORMAL, SUBST } state = NORMAL;
-    size_t fmtlen = strlen(logger->fmt);
-    size_t i;
+    unsigned int fmtlen = strlen(logger->fmt);
+    unsigned int i;
     time_t t = time(NULL);
     struct tm *lt = localtime(&t);
 
@@ -535,7 +535,7 @@ _clog_log(const char *sfile, int sline, enum clog_level level,
      * to dynamically allocated.  This should greatly reduce the number of
      * memory allocations (and subsequent fragmentation). */
     char buf[4096];
-    size_t buf_size = 4096;
+    unsigned int buf_size = 4096;
     char *dynbuf = buf;
     char *message;
     va_list ap_copy;
@@ -554,11 +554,11 @@ _clog_log(const char *sfile, int sline, enum clog_level level,
     /* Format the message text with the argument list. */
     va_copy(ap_copy, ap);
     result = vsnprintf(dynbuf, buf_size, fmt, ap);
-    if ((size_t) result >= buf_size) {
+    if ((unsigned int) result >= buf_size) {
         buf_size = result + 1;
         dynbuf = (char *) malloc(buf_size);
         result = vsnprintf(dynbuf, buf_size, fmt, ap_copy);
-        if ((size_t) result >= buf_size) {
+        if ((unsigned int) result >= buf_size) {
             /* Formatting failed -- too large */
             _clog_err("Formatting failed (1).\n");
             va_end(ap_copy);

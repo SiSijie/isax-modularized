@@ -61,28 +61,24 @@ static Value const NORMAL_BREAKPOINTS_8[255] = {
 
 typedef struct BreakpointsCache {
     Value const *summarizations;
-    size_t size;
+    unsigned int size;
 
-    Value **breakpoints;
+    Value *breakpoints;
 
-    int *shared_processed_counter;
-    int num_segments;
+    unsigned int *shared_processed_counter;
+    unsigned int num_segments;
 } BreakpointsCache;
 
 
-Value *extractBreakpoints8(Value const *values, size_t length) {
-    Value *breakpoints = malloc(sizeof(Value) * OFFSETS_BY_CARDINALITY[9]);
+void extractBreakpoints8(Value *breakpoints, Value const *values, unsigned int length) {
+    for (unsigned int i = 0; i < 8; ++i) {
+        breakpoints[OFFSETS_BY_CARDINALITY[i]] = FLT_MIN;
+        breakpoints[OFFSETS_BY_CARDINALITY[i + 1] - 1] = FLT_MAX;
 
-    for (unsigned int range_length, i = 1; i <= 8; ++i) {
-        range_length = length >> i;
-
-        for (unsigned int j = 0; j < (1u << i) - 1; ++j) {
-            // ...[... - 1], i.e., starting from values_heap[0], for compatibility when values_heap = NORMAL_BREAKPOINTS_8
-            breakpoints[OFFSETS_BY_CARDINALITY[i] + j] = values[range_length * (j + 1) - 1];
+        for (unsigned int range_length = length >> (i + 1), j = 1; j < (1u << (i + 1)); ++j) {
+            breakpoints[OFFSETS_BY_CARDINALITY[i] + j] = values[range_length * j - 1];
         }
     }
-
-    return breakpoints;
 }
 
 
@@ -91,16 +87,17 @@ void *getAdhocBreakpoints8Thread(void *cache) {
 
     Value *values_segment = malloc(sizeof(Value) * breakpointsCache->size);
 
-    int current_segment;
+    unsigned int current_segment;
     while ((current_segment = __sync_fetch_and_add(breakpointsCache->shared_processed_counter, 1)) <
            breakpointsCache->num_segments) {
-        for (int i = 0; i < breakpointsCache->size; ++i) {
+        for (unsigned int i = 0; i < breakpointsCache->size; ++i) {
             values_segment[i] = breakpointsCache->summarizations[i * breakpointsCache->num_segments + current_segment];
         }
 
         qsort(values_segment, breakpointsCache->size, sizeof(Value), VALUE_COMPARE);
 
-        breakpointsCache->breakpoints[current_segment] = extractBreakpoints8(values_segment, breakpointsCache->size);
+        extractBreakpoints8(breakpointsCache->breakpoints + OFFSETS_BY_SEGMENTS[current_segment], values_segment,
+                            breakpointsCache->size);
     }
 
     free(values_segment);
@@ -108,19 +105,18 @@ void *getAdhocBreakpoints8Thread(void *cache) {
 }
 
 
-Value **getAdhocBreakpoints8(Value const *summarizations, size_t size, size_t num_segments, int num_threads) {
-    Value **breakpoints = malloc(sizeof(Value *) * num_segments);
+Value const *getAdhocBreakpoints8(Value const *summarizations, unsigned int size, unsigned int num_segments,
+                                  unsigned int num_threads) {
+    Value *breakpoints = malloc(sizeof(Value) * OFFSETS_BY_SEGMENTS[num_segments]);
 
     if (num_threads > num_segments) {
         num_threads = num_segments;
     }
 
-    int shared_processed_counter = 0;
-
     pthread_t threads[num_threads];
     BreakpointsCache breakpointsCache[num_threads];
 
-    for (int i = 0; i < num_threads; ++i) {
+    for (unsigned int shared_processed_counter = 0, i = 0; i < num_threads; ++i) {
         breakpointsCache[i].breakpoints = breakpoints;
         breakpointsCache[i].summarizations = summarizations;
         breakpointsCache[i].size = size;
@@ -130,21 +126,21 @@ Value **getAdhocBreakpoints8(Value const *summarizations, size_t size, size_t nu
         pthread_create(&threads[i], NULL, getAdhocBreakpoints8Thread, (void *) &breakpointsCache[i]);
     }
 
-    for (int i = 0; i < num_threads; ++i) {
+    for (unsigned int i = 0; i < num_threads; ++i) {
         pthread_join(threads[i], NULL);
     }
 
 #ifdef PROFILING
-    for (int i = 0; i < 8; ++i) {
+    for (unsigned int i = 0; i < 8; ++i) {
         Value sum = 0, sum_square = 0;
-        for (unsigned int j = OFFSETS_BY_CARDINALITY[8]; j < OFFSETS_BY_CARDINALITY[9]; ++j) {
-            sum += breakpoints[i][j];
-            sum_square += breakpoints[i][j] * breakpoints[i][j];
+        for (unsigned int j = OFFSETS_BY_SEGMENTS[i] + OFFSETS_BY_CARDINALITY[7] + 1;
+             j < OFFSETS_BY_SEGMENTS[i] + OFFSETS_BY_CARDINALITY[8] - 1; ++j) {
+            sum += breakpoints[j];
+            sum_square += breakpoints[j] * breakpoints[j];
         }
-        clog_info(CLOG(CLOGGER_ID), "index - mean of breakpoints for segment %d = %f", i,
-                  sum /= (float) LENGTHS_BY_CARDINALITY[8]);
-        clog_info(CLOG(CLOGGER_ID), "index - variation of breakpoints for segment %d = %f", i,
-                  sum_square / (float) LENGTHS_BY_CARDINALITY[8] - sum * sum);
+        clog_info(CLOG(CLOGGER_ID), "index - mean(breakpoints for segment %d) = %f", i, sum /= 255);
+        clog_info(CLOG(CLOGGER_ID), "index - variance(breakpoints for segment %d) = %f", i,
+                  sum_square / 255 - sum * sum);
     }
 #endif
 
@@ -152,6 +148,27 @@ Value **getAdhocBreakpoints8(Value const *summarizations, size_t size, size_t nu
 }
 
 
-Value *getNormalBreakpoints8() {
-    return extractBreakpoints8(NORMAL_BREAKPOINTS_8, (1u << 8u));
+Value const *getNormalBreakpoints8(unsigned int num_segments) {
+    Value *breakpoints = malloc(sizeof(Value) * OFFSETS_BY_SEGMENTS[num_segments]);
+
+    extractBreakpoints8(breakpoints, NORMAL_BREAKPOINTS_8, 255);
+    for (unsigned int i = 1; i < num_segments; ++i) {
+        memcpy(breakpoints + OFFSETS_BY_SEGMENTS[i], breakpoints, sizeof(Value) * OFFSETS_BY_CARDINALITY[8]);
+    }
+
+#ifdef PROFILING
+    for (unsigned int i = 0; i < 8; ++i) {
+        Value sum = 0, sum_square = 0;
+        for (unsigned int j = OFFSETS_BY_SEGMENTS[i] + OFFSETS_BY_CARDINALITY[7] + 1;
+             j < OFFSETS_BY_SEGMENTS[i] + OFFSETS_BY_CARDINALITY[8] - 1; ++j) {
+            sum += breakpoints[j];
+            sum_square += breakpoints[j] * breakpoints[j];
+        }
+        clog_info(CLOG(CLOGGER_ID), "index - mean(breakpoints for segment %d) = %f", i, sum /= 255);
+        clog_info(CLOG(CLOGGER_ID), "index - variance(breakpoints for segment %d) = %f", i,
+                  sum_square / 255 - sum * sum);
+    }
+#endif
+
+    return breakpoints;
 }

@@ -11,7 +11,7 @@
 
 
 #define FINE_TIMING
-//#define TIMING
+#define TIMING
 
 #ifdef FINE_TIMING
 #ifndef TIMING
@@ -23,11 +23,11 @@
 #define PROFILING
 
 #ifdef PROFILING
-size_t visited_leaves_counter_profiling;
-size_t visited_series_counter_profiling;
-size_t calcuated_series_counter_profiling;
+unsigned int visited_leaves_counter_profiling;
+unsigned int visited_series_counter_profiling;
+unsigned int calculated_series_counter_profiling;
 pthread_mutex_t *log_lock_profiling;
-size_t query_id_profiling;
+unsigned int query_id_profiling;
 #endif
 
 
@@ -37,7 +37,7 @@ size_t query_id_profiling;
 typedef float Value;
 // TODO only supports sax_cardinality <= 8
 typedef unsigned char SAXWord;
-typedef unsigned char SAXMask;
+typedef unsigned int SAXMask;
 
 
 #define VALUE_L(left, right) (right - left > FLT_EPSILON)

@@ -16,8 +16,9 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
 
     Value *values = malloc(sizeof(Value) * config->series_length * config->query_size);
     FILE *file_values = fopen(config->query_filepath, "rb");
-    fread(values, sizeof(Value), config->series_length * config->query_size, file_values);
+    unsigned int read_values = fread(values, sizeof(Value), config->series_length * config->query_size, file_values);
     fclose(file_values);
+    assert(read_values == config->series_length * config->query_size);
 
     queries->values = (Value const *) values;
 
@@ -30,8 +31,9 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
     if (config->query_summarization_filepath != NULL) {
         Value *summarizations = malloc(sizeof(Value) * config->sax_length * config->query_size);
         FILE *file_summarizations = fopen(config->query_summarization_filepath, "rb");
-        fread(summarizations, sizeof(Value), config->sax_length * config->query_size, file_summarizations);
+        read_values = fread(summarizations, sizeof(Value), config->sax_length * config->query_size, file_summarizations);
         fclose(file_summarizations);
+        assert(read_values == config->sax_length * config->query_size);
 
         queries->summarizations = (Value const *) summarizations;
     } else {
@@ -70,11 +72,11 @@ void freeQuery(QuerySet *queries) {
 }
 
 
-void heapifyTopDown(Value *heap, size_t parent, size_t size) {
-    size_t left = (parent << 1u) + 1, right = left + 1;
+void heapifyTopDown(Value *heap, unsigned int parent, unsigned int size) {
+    unsigned int left = (parent << 1u) + 1, right = left + 1;
 
     if (right < size) {
-        size_t next = left;
+        unsigned int next = left;
         if (VALUE_L(heap[left], heap[right])) {
             next = right;
         }
@@ -94,9 +96,9 @@ void heapifyTopDown(Value *heap, size_t parent, size_t size) {
 }
 
 
-void heapifyBottomUp(Value *heap, size_t child) {
+void heapifyBottomUp(Value *heap, unsigned int child) {
     if (child != 0) {
-        size_t parent = (child - 1) >> 1u;
+        unsigned int parent = (child - 1) >> 1u;
 
         if (VALUE_L(heap[parent], heap[child])) {
             Value tmp = heap[child];
@@ -119,13 +121,13 @@ int checkNUpdateBSF(Answer *answer, Value distance) {
         answer->distances[0] = distance;
         heapifyTopDown(answer->distances, 0, answer->size);
     } else {
-        return -1;
+        return 1;
     }
 
 #ifdef PROFILING
     pthread_mutex_lock(log_lock_profiling);
-    clog_info(CLOG(CLOGGER_ID), "query %lu - updated BSF = %f at %lu calculated / %lu visited", query_id_profiling,
-              distance, calcuated_series_counter_profiling, visited_series_counter_profiling);
+    clog_info(CLOG(CLOGGER_ID), "query %d - updated BSF = %f at %d calculated / %d visited", query_id_profiling,
+              distance, calculated_series_counter_profiling, visited_series_counter_profiling);
     pthread_mutex_unlock(log_lock_profiling);
 #endif
 
@@ -156,9 +158,9 @@ void freeAnswer(Answer *answer) {
 }
 
 
-void logAnswer(size_t query_id, Answer *answer) {
-    for (size_t i = 0; i < answer->size; ++i) {
-        clog_info(CLOG(CLOGGER_ID), "query %lu - %lu / %luNN = %f", query_id, i, answer->k, answer->distances[i]);
+void logAnswer(unsigned int query_id, Answer *answer) {
+    for (unsigned int i = 0; i < answer->size; ++i) {
+        clog_info(CLOG(CLOGGER_ID), "query %d - %d / %luNN = %f", query_id, i, answer->k, answer->distances[i]);
     }
 }
 

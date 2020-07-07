@@ -8,10 +8,10 @@
 Value fetched_m256[8];
 
 
-Value l2Square(size_t length, Value const *left, Value const *right) {
+Value l2Square(unsigned int length, Value const *left, Value const *right) {
     Value sum = 0;
 
-    for (size_t i = 0; i < length; ++i) {
+    for (unsigned int i = 0; i < length; ++i) {
         sum += (left[i] - right[i]) * (left[i] - right[i]);
     }
 
@@ -19,10 +19,10 @@ Value l2Square(size_t length, Value const *left, Value const *right) {
 }
 
 
-Value l2SquareSIMD(size_t length, Value const *left, Value const *right) {
+Value l2SquareSIMD(unsigned int length, Value const *left, Value const *right) {
     __m256 m256_square_cumulated = _mm256_setzero_ps(), m256_diff, m256_sum;
 
-    for (size_t i = 0; i < length; i += 8) {
+    for (unsigned int i = 0; i < length; i += 8) {
         // TODO assess whether necessary to use aligned_alloc() for supporting _mm256_load_ps()
         m256_diff = _mm256_sub_ps(_mm256_loadu_ps(left + i), _mm256_loadu_ps(right + i));
         m256_square_cumulated = _mm256_fmadd_ps(m256_diff, m256_diff, m256_square_cumulated);
@@ -36,10 +36,10 @@ Value l2SquareSIMD(size_t length, Value const *left, Value const *right) {
 }
 
 
-Value l2SquareEarly(size_t length, Value const *left, Value const *right, Value threshold) {
+Value l2SquareEarly(unsigned int length, Value const *left, Value const *right, Value threshold) {
     Value sum = 0;
 
-    for (size_t i = 0; i < length; ++i) {
+    for (unsigned int i = 0; i < length; ++i) {
         if (VALUE_G(sum += (left[i] - right[i]) * (left[i] - right[i]), threshold)) {
             return sum;
         }
@@ -49,11 +49,11 @@ Value l2SquareEarly(size_t length, Value const *left, Value const *right, Value 
 }
 
 
-Value l2SquareEarlySIMD(size_t length, Value const *left, Value const *right, Value threshold) {
+Value l2SquareEarlySIMD(unsigned int length, Value const *left, Value const *right, Value threshold) {
     Value sum = 0;
 
     __m256 m256_square_cumulated = _mm256_setzero_ps(), m256_diff, m256_sum;
-    for (size_t i = 0; i < length; i += 8) {
+    for (unsigned int i = 0; i < length; i += 8) {
         m256_diff = _mm256_sub_ps(_mm256_loadu_ps(left + i), _mm256_loadu_ps(right + i));
         m256_square_cumulated = _mm256_fmadd_ps(m256_diff, m256_diff, m256_square_cumulated);
 

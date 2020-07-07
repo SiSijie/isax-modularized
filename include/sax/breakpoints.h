@@ -5,6 +5,7 @@
 #ifndef ISAX_BREAKPOINTS_H
 #define ISAX_BREAKPOINTS_H
 
+#include <float.h>
 #include <stdlib.h>
 #include <pthread.h>
 
@@ -13,38 +14,34 @@
 #include "config.h"
 
 
-static unsigned int const OFFSETS_BY_CARDINALITY[10] = {
-        0, // padding
-        0, 1, 4, 11, 26, 57, 120, 247,
-        502 // indicate breakpoints(8) length
+static unsigned int const OFFSETS_BY_CARDINALITY[9] = {
+        0, 3, 8, 17, 34, 67, 132, 261, 518
 };
 
 
-static unsigned int const LENGTHS_BY_CARDINALITY[9] = {
-        0, 1, 3, 7, 15, 31, 63, 127, 255
-};
-
-
-static unsigned int const SHIFTED_BITS_BY_CARDINALITY[9] = {
-        0, 7, 6, 5, 4, 3, 2, 1, 0
+static unsigned int const OFFSETS_BY_SEGMENTS[17] = {
+        0, 518, 518 * 2, 518 * 3, 518 * 4,
+        518 * 5, 518 * 6, 518 * 7, 518 * 8, 518 * 9,
+        518 * 10, 518 * 11, 518 * 12, 518 * 13, 518 * 14,
+        518 * 15, 518 * 16
 };
 
 
 static unsigned int const OFFSETS_BY_MASK[129] = {
-        0, 247, 120, 0, 57, 0, 0, 0, 26, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 261, 132, 0, 67, 0, 0, 0, 34, 0, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
 
 static unsigned int const LENGTHS_BY_MASK[129] = {
-        0, 255, 127, 0, 63, 0, 0, 0, 31, 0, 0, 0, 0, 0, 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 257, 129, 0, 65, 0, 0, 0, 33, 0, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 1
+        0, 0, 0, 0, 0, 0, 0, 0, 3
 };
 
 
@@ -57,8 +54,8 @@ static unsigned int const SHIFTED_BITS_BY_MASK[129] = {
 };
 
 
-Value *getNormalBreakpoints8();
+Value const *getNormalBreakpoints8(unsigned int num_segments);
 
-Value **getAdhocBreakpoints8(Value const *summarizations, size_t size, size_t num_segments, int num_threads);
+Value const *getAdhocBreakpoints8(Value const *summarizations, unsigned int size, unsigned int num_segments, unsigned int num_threads);
 
 #endif //ISAX_BREAKPOINTS_H

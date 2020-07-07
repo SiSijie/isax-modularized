@@ -29,7 +29,7 @@ const struct option longopts[] = {
 };
 
 
-int initializeThreads(Config *config, int cpu_cores, int numa_cores) {
+int initializeThreads(Config *config, unsigned int cpu_cores, unsigned int numa_cores) {
     config->max_threads = cpu_cores;
 
     cpu_set_t mask, get;
@@ -38,8 +38,8 @@ int initializeThreads(Config *config, int cpu_cores, int numa_cores) {
     CPU_ZERO(&get);
 
     // for andromache(Intel(R) Xeon(R) Gold 6134 CPU @ 3.20GHz), system(cpu)-dependent, check by lscpu
-    int step = 3 - numa_cores;
-    for (int i = 0; i < cpu_cores; ++i) {
+    unsigned int step = 3 - numa_cores;
+    for (unsigned int i = 0; i < cpu_cores; ++i) {
         CPU_SET(i * step, &mask);
     }
 
@@ -103,13 +103,13 @@ Config *initializeConfig(int argc, char **argv) {
                 config->query_summarization_filepath = optarg;
                 break;
             case 5:
-                config->database_size = (size_t) strtoull(optarg, &string_parts, 10);
+                config->database_size = (unsigned int) strtoul(optarg, &string_parts, 10);
                 break;
             case 6:
-                config->query_size = (size_t) strtoull(optarg, &string_parts, 10);
+                config->query_size = (unsigned int) strtoul(optarg, &string_parts, 10);
                 break;
             case 7:
-                config->sax_length = (size_t) strtoull(optarg, &string_parts, 10);
+                config->sax_length = (unsigned int) strtoul(optarg, &string_parts, 10);
                 break;
             case 8:
                 config->sax_cardinality = (unsigned int) strtol(optarg, &string_parts, 10);
@@ -121,7 +121,7 @@ Config *initializeConfig(int argc, char **argv) {
                 config->log_filepath = optarg;
                 break;
             case 11:
-                config->series_length = (size_t) strtol(optarg, &string_parts, 10);
+                config->series_length = (unsigned int) strtol(optarg, &string_parts, 10);
                 break;
             case 12:
                 config->use_adhoc_breakpoints = true;
@@ -130,13 +130,13 @@ Config *initializeConfig(int argc, char **argv) {
                 config->numa_cores = (int) strtol(optarg, &string_parts, 10);
                 break;
             case 14:
-                config->index_block_size = (size_t) strtoull(optarg, &string_parts, 10);
+                config->index_block_size = (unsigned int) strtoul(optarg, &string_parts, 10);
                 break;
             case 15:
-                config->leaf_size = (size_t) strtoull(optarg, &string_parts, 10);
+                config->leaf_size = (unsigned int) strtoul(optarg, &string_parts, 10);
                 break;
             case 16:
-                config->initial_leaf_size = (size_t) strtoull(optarg, &string_parts, 10);
+                config->initial_leaf_size = (unsigned int) strtoul(optarg, &string_parts, 10);
                 break;
             case 17:
                 config->exact_search = true;
@@ -153,7 +153,7 @@ Config *initializeConfig(int argc, char **argv) {
     }
 
     assert(config->series_length % config->sax_length == 0 && config->series_length % 8 == 0);
-    assert(config->sax_length > 0 && config->sax_length <= 16);
+    assert(config->sax_length == 8 || config->sax_length == 16);
     assert(config->sax_cardinality == 8);
     assert(config->database_size > 0);
     assert(config->query_size > 0);

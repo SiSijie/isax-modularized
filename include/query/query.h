@@ -24,7 +24,7 @@ typedef struct QuerySet {
     Value const *summarizations;
     SAXWord const *saxs;
 
-    size_t query_size;
+    unsigned int query_size;
 } QuerySet;
 
 
@@ -33,8 +33,8 @@ typedef struct Answer {
 
     Value *distances; // max-heap
 
-    size_t size;
-    size_t k;
+    unsigned int size;
+    unsigned int k;
 } Answer;
 
 
@@ -48,7 +48,7 @@ void freeAnswer(Answer *answer);
 
 int checkNUpdateBSF(Answer * answer, Value distance);
 
-void logAnswer(size_t query_id, Answer *answer);
+void logAnswer(unsigned int query_id, Answer *answer);
 
 Value getBSF(Answer * answer);
 

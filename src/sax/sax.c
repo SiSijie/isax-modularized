@@ -8,58 +8,48 @@
 typedef struct SAXCache {
     SAXWord *saxs;
     Value const *summarizations;
-    Value const *const *breakpoints;
+    Value const *breakpoints;
 
-    size_t size;
-    size_t sax_length;
+    unsigned int size;
+    unsigned int sax_length;
     unsigned int sax_cardinality;
 
-    size_t *shared_processed_counter;
-    size_t block_size;
+    unsigned int *shared_processed_counter;
+    unsigned int block_size;
 } SAXCache;
 
 
-unsigned int bSearchCeiling(Value value, Value const *breakpoints, unsigned int first, unsigned int last) {
-    if (first == last) {
-        return last;
+unsigned int bSearchFloor(Value value, Value const *breakpoints, unsigned int first, unsigned int last) {
+    while (first + 1 < last) {
+        unsigned int mid = (first + last) >> 1u;
+
+        if (VALUE_L(value, breakpoints[mid])) {
+            last = mid;
+        } else {
+            first = mid;
+        }
     }
 
-    unsigned int mid = (first + last) >> 1u;
-
-    if (VALUE_G(value, breakpoints[mid])) {
-        return bSearchCeiling(value, breakpoints, mid + 1, last);
-    }
-
-    return bSearchCeiling(value, breakpoints, first, mid);
-}
-
-
-SAXWord value2SAXWord8(Value value, Value const *breakpoints) {
-    unsigned int num_breakpoints = (1u << 8u) - 1u;
-
-    if (VALUE_G(value, breakpoints[OFFSETS_BY_CARDINALITY[8] + num_breakpoints - 1])) {
-        return (SAXWord) num_breakpoints;
-    }
-
-    return (SAXWord) bSearchCeiling(value, breakpoints + OFFSETS_BY_CARDINALITY[8], 0, num_breakpoints - 1);
+    return first;
 }
 
 
 void *summarizations2SAXsThread(void *cache) {
     SAXCache *saxCache = (SAXCache *) cache;
 
-    size_t start_position;
+    unsigned int start_position;
     while ((start_position = __sync_fetch_and_add(saxCache->shared_processed_counter, saxCache->block_size)) <
            saxCache->size) {
-        size_t stop_position = start_position + saxCache->block_size;
+        unsigned int stop_position = start_position + saxCache->block_size;
         if (stop_position > saxCache->size) {
             stop_position = saxCache->size;
         }
 
-        for (size_t i = start_position * saxCache->sax_length;
+        for (unsigned int i = start_position * saxCache->sax_length;
              i < stop_position * saxCache->sax_length; i += saxCache->sax_length) {
             for (unsigned int j = 0; j < saxCache->sax_length; ++j) {
-                saxCache->saxs[i + j] = value2SAXWord8(saxCache->summarizations[i + j], saxCache->breakpoints[j]);
+                saxCache->saxs[i + j] = bSearchFloor(saxCache->summarizations[i + j],
+                                                     saxCache->breakpoints + OFFSETS_BY_SEGMENTS[i], 0, 256);
             }
         }
     }
@@ -69,16 +59,15 @@ void *summarizations2SAXsThread(void *cache) {
 
 
 SAXWord *
-summarizations2SAXs(Value const *summarizations, Value const *const *breakpoints, size_t size, size_t sax_length,
-                    unsigned int sax_cardinality, int num_threads) {
+summarizations2SAXs(Value const *summarizations, Value const *breakpoints, unsigned int size, unsigned int sax_length,
+                    unsigned int sax_cardinality, unsigned int num_threads) {
     SAXWord *saxs = malloc(sizeof(SAXWord) * sax_length * size);
-
-    size_t shared_processed_counter = 0, block_size = 1 + size / (num_threads * 2);
 
     pthread_t threads[num_threads];
     SAXCache saxCache[num_threads];
 
-    for (int i = 0; i < num_threads; ++i) {
+    for (unsigned int shared_processed_counter = 0, block_size = 1 + size / (num_threads * 2), i = 0;
+         i < num_threads; ++i) {
         saxCache[i].saxs = saxs;
         saxCache[i].summarizations = summarizations;
         saxCache[i].breakpoints = breakpoints;
@@ -91,7 +80,7 @@ summarizations2SAXs(Value const *summarizations, Value const *const *breakpoints
         pthread_create(&threads[i], NULL, summarizations2SAXsThread, (void *) &saxCache[i]);
     }
 
-    for (int i = 0; i < num_threads; ++i) {
+    for (unsigned int i = 0; i < num_threads; ++i) {
         pthread_join(threads[i], NULL);
     }
 
@@ -117,26 +106,30 @@ Value l2SquareValue2SAXWord(Value value, SAXWord sax_word, Value const *breakpoi
 }
 
 
-Value l2SquareSummarization2SAXByMask(size_t sax_length, Value const *summarizations, SAXWord const *sax,
-                                      SAXMask const *masks, Value const *const *breakpoints, Value scale_factor) {
+Value l2SquareValue2SAXByMask(unsigned int sax_length, Value const *summarizations, SAXWord const *sax,
+                              SAXMask const *masks, Value const *breakpoints, Value scale_factor) {
     Value sum = 0;
 
-    for (size_t i = 0; i < sax_length; ++i) {
+    for (unsigned int i = 0; i < sax_length; ++i) {
         sum += l2SquareValue2SAXWord(summarizations[i], sax[i] >> SHIFTED_BITS_BY_MASK[masks[i]],
-                                     breakpoints[i] + OFFSETS_BY_MASK[masks[i]], LENGTHS_BY_MASK[masks[i]]);
+                                     breakpoints + OFFSETS_BY_SEGMENTS[i] + OFFSETS_BY_MASK[masks[i]],
+                                     LENGTHS_BY_MASK[masks[i]]);
     }
 
     return sum * scale_factor;
 }
 
 
-Value l2SquareSummarization2SAX8(size_t sax_length, Value const *summarizations, SAXWord const *sax,
-                                 Value const *const *breakpoints, Value scale_factor) {
+Value l2SquareValue2SAXByMaskSIMD(unsigned int sax_length, Value const *summarizations, SAXWord const *sax,
+                                  SAXMask const *masks, Value const *breakpoints, Value scale_factor) {
     Value sum = 0;
 
-    for (size_t i = 0; i < sax_length; ++i) {
-        sum += l2SquareValue2SAXWord(summarizations[i], sax[i], breakpoints[i] + OFFSETS_BY_CARDINALITY[8],
-                                     LENGTHS_BY_CARDINALITY[8]);
+    __m256i const *m256i_masks = (__m256i *) masks;
+    __m256i m256_indices, m256_offsets, m256_shifts;
+    for (unsigned int i = 0; i < (sax_length >> 3u); ++i) {
+        m256_indices = _mm256_loadu_si256(m256i_masks + i);
+        m256_offsets = _mm256_i32gather_epi32(OFFSETS_BY_MASK, m256_indices, 4);
+        m256_shifts = _mm256_i32gather_epi32(SHIFTED_BITS_BY_MASK, m256_indices, 4);
     }
 
     return sum * scale_factor;

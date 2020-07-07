@@ -5,10 +5,10 @@
 #include "index.h"
 
 
-SAXWord *rootID2SAX(size_t id, size_t num_segments, unsigned int cardinality) {
+SAXWord *rootID2SAX(unsigned int id, unsigned int num_segments, unsigned int cardinality) {
     SAXWord *sax = malloc(sizeof(SAXWord) * num_segments);
 
-    for (size_t i = 0; i < num_segments; ++i) {
+    for (unsigned int i = 0; i < num_segments; ++i) {
         sax[num_segments - 1 - i] = (SAXWord) ((id % 2) << (cardinality - 1));
         id >>= 1u;
     }
@@ -17,12 +17,12 @@ SAXWord *rootID2SAX(size_t id, size_t num_segments, unsigned int cardinality) {
 }
 
 
-size_t rootSAX2ID(SAXWord const *saxs, size_t num_segments, unsigned int cardinality) {
-    size_t id = 0;
+unsigned int rootSAX2ID(SAXWord const *saxs, unsigned int num_segments, unsigned int cardinality) {
+    unsigned int id = 0;
 
-    for (size_t i = 0; i < num_segments; ++i) {
+    for (unsigned int i = 0; i < num_segments; ++i) {
         id <<= 1u;
-        id += (size_t) (saxs[i] >> (cardinality - 1));
+        id += (unsigned int) (saxs[i] >> (cardinality - 1));
     }
 
     return id;
@@ -50,10 +50,10 @@ Index *initializeIndex(Config const *config) {
     index->roots_size = 1u << (unsigned int) config->sax_length;
     index->roots = malloc(sizeof(Node *) * index->roots_size);
     SAXMask *root_masks = malloc(sizeof(SAXMask) * config->sax_length);
-    for (size_t i = 0; i < config->sax_length; ++i) {
+    for (unsigned int i = 0; i < config->sax_length; ++i) {
         root_masks[i] = (SAXMask) (1u << (config->sax_cardinality - 1));
     }
-    for (size_t i = 0; i < index->roots_size; ++i) {
+    for (unsigned int i = 0; i < index->roots_size; ++i) {
         index->roots[i] = initializeNode(rootID2SAX(i, config->sax_length, config->sax_cardinality),
                                          root_masks);
     }
@@ -66,8 +66,9 @@ Index *initializeIndex(Config const *config) {
 
     Value *values = malloc(sizeof(Value) * config->series_length * config->database_size);
     FILE *file_values = fopen(config->database_filepath, "rb");
-    fread(values, sizeof(Value), config->series_length * config->database_size, file_values);
+    unsigned int read_values = fread(values, sizeof(Value), config->series_length * config->database_size, file_values);
     fclose(file_values);
+    assert(read_values == config->series_length * config->database_size);
 
     index->values = (Value const *) values;
 
@@ -80,8 +81,10 @@ Index *initializeIndex(Config const *config) {
     if (config->database_summarization_filepath != NULL) {
         Value *summarizations = malloc(sizeof(Value) * config->sax_length * config->database_size);
         FILE *file_summarizations = fopen(config->database_summarization_filepath, "rb");
-        fread(summarizations, sizeof(Value), config->sax_length * config->database_size, file_summarizations);
+        read_values = fread(summarizations, sizeof(Value), config->sax_length * config->database_size,
+                            file_summarizations);
         fclose(file_summarizations);
+        assert(read_values == config->sax_length * config->database_size);
 
         index->summarizations = (Value const *) summarizations;
     } else {
@@ -102,17 +105,10 @@ Index *initializeIndex(Config const *config) {
 #endif
 
     if (config->use_adhoc_breakpoints) {
-        index->breakpoints = (Value const *const *) getAdhocBreakpoints8(index->summarizations, config->database_size,
-                                                                         config->sax_length, config->max_threads);
+        index->breakpoints = getAdhocBreakpoints8(index->summarizations, config->database_size, config->sax_length,
+                                                  config->max_threads);
     } else {
-        Value **breakpoints = malloc(sizeof(Value *) * config->sax_length);
-        Value *normal_breakpoints = getNormalBreakpoints8();
-
-        for (int i = 0; i < config->sax_length; ++i) {
-            breakpoints[i] = normal_breakpoints;
-        }
-
-        index->breakpoints = (Value const *const *) breakpoints;
+        index->breakpoints = getNormalBreakpoints8(config->sax_length);
     }
 
 #ifdef FINE_TIMING
@@ -140,7 +136,7 @@ Index *initializeIndex(Config const *config) {
 void truncateNode(Node *node) {
     if (node != NULL) {
         if (node->size != 0) {
-            node->ids = realloc(node->ids, sizeof(size_t) * node->size);
+            node->ids = realloc(node->ids, sizeof(unsigned int) * node->size);
             node->capacity = node->size;
         }
 
@@ -182,14 +178,14 @@ void freeIndex(Config const *config, Index *index) {
 
     free((Value *) index->breakpoints[0]);
     if (config->use_adhoc_breakpoints) {
-        for (int i = 1; i < config->sax_length; ++i) {
+        for (unsigned int i = 1; i < config->sax_length; ++i) {
             free((Value *) index->breakpoints[i]);
         }
     }
     free((Value **) index->breakpoints);
 
     bool first_root = true;
-    for (size_t i = 0; i < index->roots_size; ++i) {
+    for (unsigned int i = 0; i < index->roots_size; ++i) {
         if (index->roots[i] != NULL) {
             if (first_root) {
                 freeNode(index->roots[i], true, true);
@@ -205,7 +201,7 @@ void freeIndex(Config const *config, Index *index) {
 
 
 void logIndex(Index *index) {
-    size_t num_series = 0, num_roots = 0;
+    unsigned int num_series = 0, num_roots = 0;
     for (unsigned int i = 0; i < index->roots_size; ++i) {
         inspectNode(index->roots[i], &num_series, &index->num_leaves, &num_roots);
     }

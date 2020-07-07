@@ -28,15 +28,15 @@ typedef struct Config {
     char *query_summarization_filepath;
     char *log_filepath;
 
-    size_t database_size;
-    size_t query_size;
+    unsigned int database_size;
+    unsigned int query_size;
 
-    size_t series_length;
-    size_t sax_length;
+    unsigned int series_length;
+    unsigned int sax_length;
     unsigned int sax_cardinality;
 
-    size_t initial_leaf_size;
-    size_t leaf_size;
+    unsigned int initial_leaf_size;
+    unsigned int leaf_size;
 
     bool use_adhoc_breakpoints;
     bool exact_search;
@@ -44,11 +44,11 @@ typedef struct Config {
 
     unsigned int k; // kNN
 
-    int cpu_cores;
-    int numa_cores;
-    int max_threads;
+    unsigned int cpu_cores;
+    unsigned int numa_cores;
+    unsigned int max_threads;
 
-    size_t index_block_size;
+    unsigned int index_block_size;
 } Config;
 
 

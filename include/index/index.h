@@ -19,25 +19,25 @@
 typedef struct Index {
     Node **roots;
 
-    size_t roots_size;
-    size_t num_leaves;
+    unsigned int roots_size;
+    unsigned int num_leaves;
 
     Value const *values;
 
-    size_t database_size;
-    size_t series_length;
+    unsigned int database_size;
+    unsigned int series_length;
 
     Value const *summarizations;
-    Value const *const *breakpoints;
+    Value const *breakpoints;
     SAXWord const *saxs;
 
-    size_t sax_length;
+    unsigned int sax_length;
     unsigned int sax_cardinality;
 } Index;
 
-Node *route(Node const *parent, SAXWord const *sax, size_t num_segments);
+Node *route(Node const *parent, SAXWord const *sax, unsigned int num_segments);
 
-size_t rootSAX2ID(SAXWord const *saxs, size_t num_segments, unsigned int cardinality);
+unsigned int rootSAX2ID(SAXWord const *saxs, unsigned int num_segments, unsigned int cardinality);
 
 Index *initializeIndex(Config const *config);
 

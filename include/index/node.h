@@ -19,9 +19,9 @@ typedef struct Node {
     SAXWord *sax;
     SAXMask *masks;
 
-    size_t *ids;
-    size_t size;
-    size_t capacity;
+    unsigned int *ids;
+    unsigned int size;
+    unsigned int capacity;
 
     struct Node *left;
     struct Node *right;
@@ -30,7 +30,7 @@ typedef struct Node {
 
 Node *initializeNode(SAXWord *saxWord, SAXMask *saxMask);
 
-void inspectNode(Node *node, size_t *num_series, size_t *num_leaves, size_t *num_roots);
+void inspectNode(Node *node, unsigned int *num_series, unsigned int *num_leaves, unsigned int *num_roots);
 
 void freeNode(Node *node, bool free_mask, bool free_sax);
 

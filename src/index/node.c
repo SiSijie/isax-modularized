@@ -25,7 +25,7 @@ Node *initializeNode(SAXWord *sax, SAXMask *masks) {
 }
 
 
-void inspectNode(Node *node, size_t *num_series, size_t *num_leaves, size_t *num_roots) {
+void inspectNode(Node *node, unsigned int *num_series, unsigned int *num_leaves, unsigned int *num_roots) {
     if (node != NULL) {
         if (node->size != 0) {
             if (num_roots != NULL) {

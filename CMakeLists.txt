@@ -6,6 +6,9 @@ project(isax C)
 
 set(CMAKE_C_STANDARD 11)
 
+# following MESSI
+add_compile_options(-O2)
+
 # include of directory-level rather than target-level (preferred) only for CLion to resolve symbols
 include_directories(include/index)
 include_directories(include/paa)
