@@ -89,17 +89,12 @@ summarizations2SAXs(Value const *summarizations, Value const *breakpoints, unsig
 
 
 Value l2SquareValue2SAXWord(Value value, SAXWord sax_word, Value const *breakpoints, unsigned int length) {
-    if (sax_word == (SAXWord) length) {
-        if (VALUE_L(value, breakpoints[length - 1])) {
-            return (breakpoints[length - 1] - value) * (breakpoints[length - 1] - value);
-        }
-        return 0;
-    }
+    unsigned int breakpoint_floor = (unsigned int) sax_word;
 
-    if (VALUE_G(value, breakpoints[sax_word])) {
-        return (value - breakpoints[sax_word]) * (value - breakpoints[sax_word]);
-    } else if ((sax_word != (SAXWord) 0u) && (VALUE_L(value, breakpoints[sax_word - 1u]))) {
-        return (breakpoints[sax_word - 1u] - value) * (breakpoints[sax_word - 1u] - value);
+    if (VALUE_L(value, breakpoints[breakpoint_floor])) {
+        return (breakpoints[breakpoint_floor] - value) * (breakpoints[breakpoint_floor] - value);
+    } else if (VALUE_GEQ(value, breakpoints[breakpoint_floor + 1])) {
+        return (value - breakpoints[breakpoint_floor + 1]) * (value - breakpoints[breakpoint_floor + 1]);
     }
 
     return 0;

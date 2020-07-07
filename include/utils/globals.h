@@ -42,9 +42,9 @@ typedef unsigned int SAXMask;
 
 #define VALUE_L(left, right) (right - left > FLT_EPSILON)
 #define VALUE_G(left, right) (left - right > FLT_EPSILON)
-#define VALUE_LEQ(left, right) (!VALUE_G(left, right))
-#define VALUE_GEQ(left, right) (!(VALUE_L(left, right)))
-#define VALUE_EQ(left, right) ((left - right <= FLT_EPSILON) && ((right - left <= FLT_EPSILON)))
+#define VALUE_LEQ(left, right) (left - right <= FLT_EPSILON)
+#define VALUE_GEQ(left, right) (right - left <= FLT_EPSILON)
+#define VALUE_EQ(left, right) ((left - right <= FLT_EPSILON) && (right - left <= FLT_EPSILON))
 
 
 static inline int VALUE_COMPARE(void const *left, void const *right) {
