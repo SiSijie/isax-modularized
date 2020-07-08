@@ -75,8 +75,8 @@ void extractBreakpoints8(Value *breakpoints, Value const *values, unsigned int l
         breakpoints[OFFSETS_BY_CARDINALITY[i]] = FLT_MIN;
         breakpoints[OFFSETS_BY_CARDINALITY[i + 1] - 1] = FLT_MAX;
 
-        for (unsigned int range_length = length >> (i + 1), j = 1; j < (1u << (i + 1)); ++j) {
-            breakpoints[OFFSETS_BY_CARDINALITY[i] + j] = values[range_length * j - 1];
+        for (unsigned int range_length = (length >> (i + 1)) + 1, j = 1; j < (1u << (i + 1)); ++j) {
+            breakpoints[OFFSETS_BY_CARDINALITY[i] + j] = values[range_length * j];
         }
     }
 }
@@ -138,8 +138,9 @@ Value const *getAdhocBreakpoints8(Value const *summarizations, unsigned int size
             sum += breakpoints[j];
             sum_square += breakpoints[j] * breakpoints[j];
         }
-        clog_info(CLOG(CLOGGER_ID), "index - mean(breakpoints for segment %d) = %f", i, sum /= 255);
-        clog_info(CLOG(CLOGGER_ID), "index - variance(breakpoints for segment %d) = %f", i,
+
+        sum /= 255;
+        clog_info(CLOG(CLOGGER_ID), "index - mean / variance (adhoc breakpoints[%d]) = %f / %f", i, sum,
                   sum_square / 255 - sum * sum);
     }
 #endif
@@ -164,8 +165,9 @@ Value const *getNormalBreakpoints8(unsigned int num_segments) {
             sum += breakpoints[j];
             sum_square += breakpoints[j] * breakpoints[j];
         }
-        clog_info(CLOG(CLOGGER_ID), "index - mean(breakpoints for segment %d) = %f", i, sum /= 255);
-        clog_info(CLOG(CLOGGER_ID), "index - variance(breakpoints for segment %d) = %f", i,
+
+        sum /= 255;
+        clog_info(CLOG(CLOGGER_ID), "index - mean / variance (normal breakpoints[%d]) = %f / %f", i, sum,
                   sum_square / 255 - sum * sum);
     }
 #endif

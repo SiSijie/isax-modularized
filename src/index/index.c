@@ -175,14 +175,7 @@ void finalizeIndex(Index *index) {
 void freeIndex(Config const *config, Index *index) {
     free((Value *) index->values);
     free((SAXWord *) index->saxs);
-
-    free((Value *) index->breakpoints[0]);
-    if (config->use_adhoc_breakpoints) {
-        for (unsigned int i = 1; i < config->sax_length; ++i) {
-            free((Value *) index->breakpoints[i]);
-        }
-    }
-    free((Value **) index->breakpoints);
+    free((Value *) index->breakpoints);
 
     bool first_root = true;
     for (unsigned int i = 0; i < index->roots_size; ++i) {

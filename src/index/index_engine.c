@@ -50,22 +50,49 @@ void splitNode(Index *index, Node *parent, unsigned int num_segments) {
     unsigned int segment_to_split = -1;
     int smallest_difference = (int) parent->size;
 
+#ifdef DEBUG
+    clog_debug(CLOG(CLOGGER_ID), "index - initial smallest_difference / node size = %d", smallest_difference);
+
+    for (unsigned int i = 0; i < num_segments; i += 8) {
+        clog_debug(CLOG(CLOGGER_ID), "index - sax %d-%d (node) = %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d",
+                   i, i + 4, parent->sax[i], parent->masks[i], parent->sax[i + 1], parent->masks[i + 1],
+                   parent->sax[i + 2], parent->masks[i + 2], parent->sax[i + 3], parent->masks[i + 3],
+                   parent->sax[i + 4], parent->masks[i + 4], parent->sax[i + 5], parent->masks[i + 5],
+                   parent->sax[i + 6], parent->masks[i + 6], parent->sax[i + 7], parent->masks[i + 7]);
+    }
+
+    for (unsigned int i = 0; i < parent->size; ++i) {
+        for (unsigned int j = 0; j < num_segments; j += 8) {
+            unsigned int offset = index->sax_length * parent->ids[i] + j;
+            clog_debug(CLOG(CLOGGER_ID), "index - sax %d-%d (series %d) = %d %d %d %d %d %d %d %d", j, j + 8, i,
+                       index->saxs[offset], index->saxs[offset + 1], index->saxs[offset + 2], index->saxs[offset + 3],
+                       index->saxs[offset + 4], index->saxs[offset + 5],
+                       index->saxs[offset + 6], index->saxs[offset + 7]);
+        }
+    }
+#endif
+
     for (unsigned int i = 0; i < num_segments; ++i) {
         if ((parent->masks[i] & 1u) == 0u) {
-            int differences = 0;
+            int difference = 0;
             SAXMask next_bit = parent->masks[i] >> 1u;
 
             for (unsigned int j = 0; j < parent->size; ++j) {
                 if ((index->saxs[index->sax_length * parent->ids[j] + i] & next_bit) == 0u) {
-                    differences -= 1;
+                    difference -= 1;
                 } else {
-                    differences += 1;
+                    difference += 1;
                 }
             }
 
-            if (abs(differences) < smallest_difference) {
+#ifdef DEBUG
+            clog_debug(CLOG(CLOGGER_ID), "index - difference of segment %d of mask %d = %d ~ %d", i, next_bit,
+                       difference, smallest_difference);
+#endif
+
+            if (abs(difference) < smallest_difference) {
                 segment_to_split = i;
-                smallest_difference = abs(differences);
+                smallest_difference = abs(difference);
             }
         }
     }
@@ -75,7 +102,7 @@ void splitNode(Index *index, Node *parent, unsigned int num_segments) {
     //         /    \
     //       8000    0
     //      /    \
-    //   3000
+    //   3000   5000
     // which can also be directly split on the next two bits
     if (segment_to_split == -1) {
         clog_error(CLOG(CLOGGER_ID), "cannot find segment to split");
@@ -94,7 +121,8 @@ void splitNode(Index *index, Node *parent, unsigned int num_segments) {
     parent->right = initializeNode(right_sax, child_masks);
 
     for (unsigned int i = 0; i < parent->size; ++i) {
-        if ((index->saxs[index->sax_length * parent->ids[i] + segment_to_split] & child_masks[segment_to_split]) == 0u) {
+        if ((index->saxs[index->sax_length * parent->ids[i] + segment_to_split] & child_masks[segment_to_split]) ==
+            0u) {
             insertNode(parent->left, parent->ids[i], parent->capacity, parent->capacity);
         } else {
             insertNode(parent->right, parent->ids[i], parent->capacity, parent->capacity);
