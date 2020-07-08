@@ -10,6 +10,7 @@
 #include <immintrin.h>
 
 #include "globals.h"
+#include "distance.h"
 #include "breakpoints.h"
 
 

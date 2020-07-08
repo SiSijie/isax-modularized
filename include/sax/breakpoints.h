@@ -8,6 +8,7 @@
 #include <float.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <immintrin.h>
 
 #include "globals.h"
 #include "clog.h"
@@ -26,6 +27,10 @@ static unsigned int const OFFSETS_BY_SEGMENTS[17] = {
         518 * 15, 518 * 16
 };
 
+__m256i *M256I_OFFSETS_BY_SEGMENTS;
+//__m256i const M256I_1 = (__m256i) (__v8si) {1, 1, 1, 1, 1, 1, 1, 1};
+// it's weired that (__m256i) (__v8si) {1, 1, 1, 1, 1, 1, 1, 1} isn't regarded as constant
+__m256i M256I_1;
 
 static unsigned int const OFFSETS_BY_MASK[129] = {
         0, 261, 132, 0, 67, 0, 0, 0, 34, 0, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -53,9 +58,14 @@ static unsigned int const SHIFTED_BITS_BY_MASK[129] = {
         0, 0, 0, 0, 0, 0, 0, 0, 7
 };
 
+inline static void initializeM256IConstants() {
+    M256I_1 = (__m256i) (__v8si) {1, 1, 1, 1, 1, 1, 1, 1};
+    M256I_OFFSETS_BY_SEGMENTS = (__m256i *) OFFSETS_BY_SEGMENTS;
+}
 
 Value const *getNormalBreakpoints8(unsigned int num_segments);
 
-Value const *getAdhocBreakpoints8(Value const *summarizations, unsigned int size, unsigned int num_segments, unsigned int num_threads);
+Value const *getAdhocBreakpoints8(Value const *summarizations, unsigned int size, unsigned int num_segments,
+                                  unsigned int num_threads);
 
 #endif //ISAX_BREAKPOINTS_H

@@ -48,11 +48,11 @@ void *queryThread(void *cache) {
 
                 // ignoring equivalence for performance
                 if (VALUE_G(local_bsf,
-                            l2SquareValue2SAXByMask(queryCache->index->sax_length, queryCache->query_summarization,
-                                                    queryCache->index->saxs +
-                                                    leaf->ids[i] * queryCache->index->sax_length,
-                                                    queryCache->masks8, queryCache->index->breakpoints,
-                                                    queryCache->scale_factor))) {
+                            l2SquareValue2SAXByMaskSIMD(queryCache->index->sax_length, queryCache->query_summarization,
+                                                        queryCache->index->saxs +
+                                                        leaf->ids[i] * queryCache->index->sax_length,
+                                                        queryCache->masks8, queryCache->index->breakpoints,
+                                                        queryCache->scale_factor))) {
 #ifdef PROFILING
                     __sync_fetch_and_add(&calculated_series_counter_profiling, 1);
 #endif
@@ -224,9 +224,9 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
                 if (leaves[j] == node) {
                     leaf_distances[j] = FLT_MAX;
                 } else {
-                    leaf_distances[j] = l2SquareValue2SAXByMask(config->sax_length, query_summarization,
-                                                                leaves[j]->sax, leaves[j]->masks,
-                                                                index->breakpoints, scale_factor);
+                    leaf_distances[j] = l2SquareValue2SAXByMaskSIMD(config->sax_length, query_summarization,
+                                                                    leaves[j]->sax, leaves[j]->masks,
+                                                                    index->breakpoints, scale_factor);
                 }
             }
 

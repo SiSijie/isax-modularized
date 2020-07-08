@@ -5,9 +5,6 @@
 #include "distance.h"
 
 
-Value fetched_m256[8];
-
-
 Value l2Square(unsigned int length, Value const *left, Value const *right) {
     Value sum = 0;
 
@@ -30,9 +27,9 @@ Value l2SquareSIMD(unsigned int length, Value const *left, Value const *right) {
 
     m256_sum = _mm256_hadd_ps(m256_square_cumulated, m256_square_cumulated);
     m256_sum = _mm256_hadd_ps(m256_sum, m256_sum);
-    _mm256_storeu_ps(fetched_m256, m256_sum);
+    _mm256_storeu_ps(M256_FETCHED, m256_sum);
 
-    return fetched_m256[0] + fetched_m256[4];
+    return M256_FETCHED[0] + M256_FETCHED[4];
 }
 
 
@@ -59,9 +56,9 @@ Value l2SquareEarlySIMD(unsigned int length, Value const *left, Value const *rig
 
         m256_sum = _mm256_hadd_ps(m256_square_cumulated, m256_square_cumulated);
         m256_sum = _mm256_hadd_ps(m256_sum, m256_sum);
-        _mm256_storeu_ps(fetched_m256, m256_sum);
+        _mm256_storeu_ps(M256_FETCHED, m256_sum);
 
-        if (VALUE_G((sum = fetched_m256[0] + fetched_m256[4]), threshold)) {
+        if (VALUE_G((sum = M256_FETCHED[0] + M256_FETCHED[4]), threshold)) {
             return sum;
         }
     }
