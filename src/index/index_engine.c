@@ -13,6 +13,8 @@ typedef struct IndexCache {
 
     unsigned int initial_leaf_size;
     unsigned int leaf_size;
+
+    bool split_by_summarizations;
 } IndexCache;
 
 
@@ -46,32 +48,9 @@ void insertNode(Node *leaf, unsigned int id, unsigned int initial_leaf_size, uns
 }
 
 
-void splitNode(Index *index, Node *parent, unsigned int num_segments) {
+unsigned int decideSplitSegmentByNextBit(Index *index, Node *parent, unsigned int num_segments) {
     unsigned int segment_to_split = -1;
     int smallest_difference = (int) parent->size;
-
-#ifdef DEBUG
-    clog_debug(CLOG(CLOGGER_ID), "index - initial smallest_difference / node size = %d", smallest_difference);
-
-    for (unsigned int i = 0; i < num_segments; i += 8) {
-        clog_debug(CLOG(CLOGGER_ID), "index - sax %d-%d (node) = %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d",
-                   i, i + 4, parent->sax[i], parent->masks[i], parent->sax[i + 1], parent->masks[i + 1],
-                   parent->sax[i + 2], parent->masks[i + 2], parent->sax[i + 3], parent->masks[i + 3],
-                   parent->sax[i + 4], parent->masks[i + 4], parent->sax[i + 5], parent->masks[i + 5],
-                   parent->sax[i + 6], parent->masks[i + 6], parent->sax[i + 7], parent->masks[i + 7]);
-    }
-
-    for (unsigned int i = 0; i < parent->size; ++i) {
-        for (unsigned int j = 0; j < num_segments; j += 8) {
-            unsigned int offset = index->sax_length * parent->ids[i] + j;
-            clog_debug(CLOG(CLOGGER_ID), "index - sax %d-%d (series %d) = %d %d %d %d %d %d %d %d", j, j + 8, i,
-                       index->saxs[offset], index->saxs[offset + 1], index->saxs[offset + 2], index->saxs[offset + 3],
-                       index->saxs[offset + 4], index->saxs[offset + 5],
-                       index->saxs[offset + 6], index->saxs[offset + 7]);
-        }
-    }
-#endif
-
     for (unsigned int i = 0; i < num_segments; ++i) {
         if ((parent->masks[i] & 1u) == 0u) {
             int difference = 0;
@@ -85,14 +64,14 @@ void splitNode(Index *index, Node *parent, unsigned int num_segments) {
                 }
             }
 
-#ifdef DEBUG
-            clog_debug(CLOG(CLOGGER_ID), "index - difference of segment %d of mask %d = %d ~ %d", i, next_bit,
-                       difference, smallest_difference);
-#endif
-
             if (abs(difference) < smallest_difference) {
                 segment_to_split = i;
                 smallest_difference = abs(difference);
+
+#ifdef DEBUG
+                clog_debug(CLOG(CLOGGER_ID), "index - difference of segment %d of mask %d = %d ~ %d", i, next_bit,
+                           difference, smallest_difference);
+#endif
             }
         }
     }
@@ -107,6 +86,88 @@ void splitNode(Index *index, Node *parent, unsigned int num_segments) {
     if (segment_to_split == -1) {
         clog_error(CLOG(CLOGGER_ID), "cannot find segment to split");
         exit(EXIT_FAILURE);
+    }
+
+    return segment_to_split;
+}
+
+
+unsigned int decideSplitSegmentByDistribution(Index *index, Node *parent, unsigned int num_segments) {
+    unsigned int segment_to_split = -1;
+    double bsf = VALUE_MAX;
+
+    for (unsigned int i = 0; i < num_segments; ++i) {
+        if ((parent->masks[i] & 1u) == 0u) {
+            SAXMask next_mask = parent->masks[i] >> 1u;
+            double tmp, mean = 0, std = 0;
+
+            for (unsigned int j = 0; j < parent->size; ++j) {
+                mean += (tmp = index->summarizations[index->sax_length * parent->ids[j] + i]);
+                std += tmp * tmp;
+            }
+
+            mean /= parent->size;
+            std = 3 * sqrt(std / parent->size - mean * mean);
+
+            tmp = index->breakpoints[OFFSETS_BY_SEGMENTS[i] + OFFSETS_BY_MASK[next_mask] +
+                                     (((unsigned int) parent->sax[i] >> SHIFTS_BY_MASK[next_mask]) | 1u)];
+
+//#ifdef DEBUG
+//            clog_debug(CLOG(CLOGGER_ID), "index - mean/3*std/breakpoint(%d/%d@%d+%d+%d) of s%d(%d/%d) = %f/%f/%f",
+//                       next_mask, ((unsigned int) parent->sax[i] >> SHIFTS_BY_MASK[next_mask]),
+//                       OFFSETS_BY_SEGMENTS[i], OFFSETS_BY_MASK[next_mask],
+//                       (((unsigned int) parent->sax[i] >> SHIFTS_BY_MASK[next_mask]) | 1u), i, parent->sax[i],
+//                       parent->masks[i], mean, std, tmp);
+//#endif
+
+            if (VALUE_GEQ(tmp, mean - std) && VALUE_LEQ(tmp, mean + std) && VALUE_L(fabs(tmp - mean), bsf)) {
+                bsf = fabs(tmp - mean);
+                segment_to_split = i;
+
+#ifdef DEBUG
+                clog_debug(CLOG(CLOGGER_ID), "index - mean2breakpoint of s%d (%d / %d-->%d) = %f",
+                           i, parent->sax[i], parent->masks[i], next_mask, bsf);
+#endif
+            }
+        }
+    }
+
+    if (segment_to_split == -1) {
+        clog_error(CLOG(CLOGGER_ID), "cannot find segment to split");
+        exit(EXIT_FAILURE);
+    }
+
+    return segment_to_split;
+}
+
+
+void splitNode(Index *index, Node *parent, unsigned int num_segments, bool split_by_summarizations) {
+#ifdef DEBUG
+    for (unsigned int i = 0; i < num_segments; i += 8) {
+        clog_debug(CLOG(CLOGGER_ID), "index - sax %d-%d (node) = %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d",
+                   i, i + 4, parent->sax[i], parent->masks[i], parent->sax[i + 1], parent->masks[i + 1],
+                   parent->sax[i + 2], parent->masks[i + 2], parent->sax[i + 3], parent->masks[i + 3],
+                   parent->sax[i + 4], parent->masks[i + 4], parent->sax[i + 5], parent->masks[i + 5],
+                   parent->sax[i + 6], parent->masks[i + 6], parent->sax[i + 7], parent->masks[i + 7]);
+    }
+
+//    for (unsigned int i = 0; i < parent->size; ++i) {
+//        for (unsigned int j = 0; j < num_segments; j += 8) {
+//            unsigned int offset = index->sax_length * parent->ids[i] + j;
+//            clog_debug(CLOG(CLOGGER_ID), "index - sax %d-%d (series %d) = %d %d %d %d %d %d %d %d", j, j + 8, i,
+//                       index->saxs[offset], index->saxs[offset + 1], index->saxs[offset + 2], index->saxs[offset + 3],
+//                       index->saxs[offset + 4], index->saxs[offset + 5],
+//                       index->saxs[offset + 6], index->saxs[offset + 7]);
+//        }
+//    }
+#endif
+
+    unsigned int segment_to_split;
+
+    if (split_by_summarizations) {
+        segment_to_split = decideSplitSegmentByDistribution(index, parent, num_segments);
+    } else {
+        segment_to_split = decideSplitSegmentByNextBit(index, parent, num_segments);
     }
 
     SAXMask *child_masks = malloc(sizeof(SAXMask) * num_segments);
@@ -160,7 +221,7 @@ void *buildIndexThread(void *cache) {
                 Node *parent = node;
 
                 if (node->size == indexCache->leaf_size) {
-                    splitNode(index, parent, index->sax_length);
+                    splitNode(index, parent, index->sax_length, indexCache->split_by_summarizations);
                 }
 
                 node = route(parent, sax, index->sax_length);
@@ -199,6 +260,7 @@ void buildIndex(Config const *config, Index *index) {
         indexCache[i].initial_leaf_size = config->initial_leaf_size;
         indexCache[i].block_size = config->index_block_size;
         indexCache[i].shared_start_id = &shared_start_id;
+        indexCache[i].split_by_summarizations = config->split_by_summarizations;
 
         pthread_create(&threads[i], NULL, buildIndexThread, (void *) &indexCache[i]);
     }

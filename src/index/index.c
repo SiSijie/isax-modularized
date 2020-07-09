@@ -156,7 +156,7 @@ void finalizeIndex(Index *index) {
     clock_t start_clock = clock();
 #endif
 
-    free((Value *) index->summarizations);
+//    free((Value *) index->summarizations);
 
     for (unsigned int i = 0; i < index->roots_size; ++i) {
         if (index->roots[i]->size == 0 && index->roots[i]->left == NULL) {
@@ -179,6 +179,7 @@ void freeIndex(Config const *config, Index *index) {
     free((Value *) index->values);
     free((SAXWord *) index->saxs);
     free((Value *) index->breakpoints);
+    free((Value *) index->summarizations);
 
     bool first_root = true;
     for (unsigned int i = 0; i < index->roots_size; ++i) {

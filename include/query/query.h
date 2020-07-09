@@ -44,6 +44,8 @@ void freeQuery(QuerySet *queries);
 
 Answer *initializeAnswer(Config const *config);
 
+void cleanAnswer(Answer *answer);
+
 void freeAnswer(Answer *answer);
 
 int checkNUpdateBSF(Answer * answer, Value distance);

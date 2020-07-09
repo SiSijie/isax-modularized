@@ -16,7 +16,8 @@
 
 
 static unsigned int const OFFSETS_BY_CARDINALITY[9] = {
-        0, 3, 8, 17, 34, 67, 132, 261, 518
+        0, 3, 8, 17, 34,
+        67, 132, 261, 518
 };
 
 
@@ -27,10 +28,12 @@ static unsigned int const OFFSETS_BY_SEGMENTS[17] = {
         518 * 15, 518 * 16
 };
 
+
 __m256i *M256I_OFFSETS_BY_SEGMENTS;
 //__m256i const M256I_1 = (__m256i) (__v8si) {1, 1, 1, 1, 1, 1, 1, 1};
 // it's weired that (__m256i) (__v8si) {1, 1, 1, 1, 1, 1, 1, 1} isn't regarded as constant
 __m256i M256I_1;
+
 
 static unsigned int const OFFSETS_BY_MASK[129] = {
         0, 261, 132, 0, 67, 0, 0, 0, 34, 0, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -50,7 +53,7 @@ static unsigned int const LENGTHS_BY_MASK[129] = {
 };
 
 
-static unsigned int const SHIFTED_BITS_BY_MASK[129] = {
+static unsigned int const SHIFTS_BY_MASK[129] = {
         0, 0, 1, 0, 2, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -58,10 +61,8 @@ static unsigned int const SHIFTED_BITS_BY_MASK[129] = {
         0, 0, 0, 0, 0, 0, 0, 0, 7
 };
 
-inline static void initializeM256IConstants() {
-    M256I_1 = (__m256i) (__v8si) {1, 1, 1, 1, 1, 1, 1, 1};
-    M256I_OFFSETS_BY_SEGMENTS = (__m256i *) OFFSETS_BY_SEGMENTS;
-}
+
+void initializeM256IConstants();
 
 Value const *getNormalBreakpoints8(unsigned int num_segments);
 

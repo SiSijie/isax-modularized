@@ -41,6 +41,7 @@ typedef struct Config {
     bool use_adhoc_breakpoints;
     bool exact_search;
     bool sort_leaves;
+    bool split_by_summarizations;
 
     unsigned int k; // kNN
 

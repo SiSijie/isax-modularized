@@ -12,7 +12,6 @@ typedef struct SAXCache {
 
     unsigned int size;
     unsigned int sax_length;
-    unsigned int sax_cardinality;
 
     unsigned int *shared_processed_counter;
     unsigned int block_size;
@@ -34,7 +33,7 @@ unsigned int bSearchFloor(Value value, Value const *breakpoints, unsigned int fi
 }
 
 
-void *summarizations2SAXsThread(void *cache) {
+void *summarizations2SAXs8Thread(void *cache) {
     SAXCache *saxCache = (SAXCache *) cache;
 
     unsigned int start_position, stop_position, i, j;
@@ -76,9 +75,8 @@ summarizations2SAXs(Value const *summarizations, Value const *breakpoints, unsig
         saxCache[i].block_size = block_size;
         saxCache[i].size = size;
         saxCache[i].sax_length = sax_length;
-        saxCache[i].sax_cardinality = sax_cardinality;
 
-        pthread_create(&threads[i], NULL, summarizations2SAXsThread, (void *) &saxCache[i]);
+        pthread_create(&threads[i], NULL, summarizations2SAXs8Thread, (void *) &saxCache[i]);
     }
 
     for (unsigned int i = 0; i < num_threads; ++i) {
@@ -89,7 +87,7 @@ summarizations2SAXs(Value const *summarizations, Value const *breakpoints, unsig
 }
 
 
-Value l2SquareValue2SAXWord(Value value, SAXWord sax_word, Value const *breakpoints, unsigned int length) {
+Value l2SquareValue2SAXWord(Value value, SAXWord sax_word, Value const *breakpoints) {
     unsigned int breakpoint_floor = (unsigned int) sax_word;
 
     if (VALUE_L(value, breakpoints[breakpoint_floor])) {
@@ -105,11 +103,17 @@ Value l2SquareValue2SAXWord(Value value, SAXWord sax_word, Value const *breakpoi
 Value l2SquareValue2SAXByMask(unsigned int sax_length, Value const *summarizations, SAXWord const *sax,
                               SAXMask const *masks, Value const *breakpoints, Value scale_factor) {
     Value sum = 0;
+    Value const *current_breakpoints;
 
     for (unsigned int i = 0; i < sax_length; ++i) {
-        sum += l2SquareValue2SAXWord(summarizations[i], sax[i] >> SHIFTED_BITS_BY_MASK[masks[i]],
-                                     breakpoints + OFFSETS_BY_SEGMENTS[i] + OFFSETS_BY_MASK[masks[i]],
-                                     LENGTHS_BY_MASK[masks[i]]);
+        current_breakpoints = breakpoints + OFFSETS_BY_SEGMENTS[i] + OFFSETS_BY_MASK[masks[i]] +
+                              ((unsigned int) sax[i] >> SHIFTS_BY_MASK[masks[i]]);
+
+        if (VALUE_L(summarizations[i], *current_breakpoints)) {
+            sum += (*current_breakpoints - summarizations[i]) * (*current_breakpoints - summarizations[i]);
+        } else if (VALUE_GEQ(summarizations[i], *(current_breakpoints + 1))) {
+            sum += (summarizations[i] - *(current_breakpoints + 1)) * (summarizations[i] - *(current_breakpoints + 1));
+        }
     }
 
     return sum * scale_factor;
@@ -125,7 +129,7 @@ Value l2SquareValue2SAXByMaskSIMD(unsigned int sax_length, Value const *summariz
 
     __m256i m256i_mask_indices = _mm256_loadu_si256(m256i_masks);
     __m256i m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 0));
-    __m256i m256i_sax_shifts = _mm256_i32gather_epi32(SHIFTED_BITS_BY_MASK, m256i_mask_indices, 4);
+    __m256i m256i_sax_shifts = _mm256_i32gather_epi32(SHIFTS_BY_MASK, m256i_mask_indices, 4);
     __m256i m256i_cardinality_offsets = _mm256_i32gather_epi32(OFFSETS_BY_MASK, m256i_mask_indices, 4);
     __m256i m256i_breakpoint_indices = _mm256_add_epi32(_mm256_add_epi32(_mm256_loadu_si256(M256I_OFFSETS_BY_SEGMENTS),
                                                                          m256i_cardinality_offsets),
@@ -149,7 +153,7 @@ Value l2SquareValue2SAXByMaskSIMD(unsigned int sax_length, Value const *summariz
 
         m256i_mask_indices = _mm256_loadu_si256(m256i_masks + 1);
         m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 1));
-        m256i_sax_shifts = _mm256_i32gather_epi32(SHIFTED_BITS_BY_MASK, m256i_mask_indices, 4);
+        m256i_sax_shifts = _mm256_i32gather_epi32(SHIFTS_BY_MASK, m256i_mask_indices, 4);
         m256i_cardinality_offsets = _mm256_i32gather_epi32(OFFSETS_BY_MASK, m256i_mask_indices, 4);
         m256i_breakpoint_indices = _mm256_add_epi32(_mm256_add_epi32(_mm256_loadu_si256(M256I_OFFSETS_BY_SEGMENTS),
                                                                      m256i_cardinality_offsets),

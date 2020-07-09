@@ -59,6 +59,12 @@ static Value const NORMAL_BREAKPOINTS_8[255] = {
 };
 
 
+void initializeM256IConstants() {
+    M256I_1 = _mm256_set1_epi32(1);
+    M256I_OFFSETS_BY_SEGMENTS = (__m256i *) OFFSETS_BY_SEGMENTS;
+}
+
+
 typedef struct BreakpointsCache {
     Value const *summarizations;
     unsigned int size;
@@ -72,8 +78,8 @@ typedef struct BreakpointsCache {
 
 void extractBreakpoints8(Value *breakpoints, Value const *values, unsigned int length) {
     for (unsigned int i = 0; i < 8; ++i) {
-        breakpoints[OFFSETS_BY_CARDINALITY[i]] = FLT_MIN;
-        breakpoints[OFFSETS_BY_CARDINALITY[i + 1] - 1] = FLT_MAX;
+        breakpoints[OFFSETS_BY_CARDINALITY[i]] = VALUE_MIN;
+        breakpoints[OFFSETS_BY_CARDINALITY[i + 1] - 1] = VALUE_MAX;
 
         for (unsigned int range_length = (length >> (i + 1)) + 1, j = 1; j < (1u << (i + 1)); ++j) {
             breakpoints[OFFSETS_BY_CARDINALITY[i] + j] = values[range_length * j];

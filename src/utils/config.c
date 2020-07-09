@@ -25,6 +25,7 @@ const struct option longopts[] = {
         {"exact_search",                    no_argument,       0,    17},
         {"k",                               required_argument, 0,    18},
         {"sort_leaves",                     no_argument,       0,    19},
+        {"split_by_summarizations",         no_argument,       0,    20},
         {NULL,                              no_argument,       NULL, 0}
 };
 
@@ -80,6 +81,7 @@ Config *initializeConfig(int argc, char **argv) {
     config->use_adhoc_breakpoints = false;
     config->exact_search = false;
     config->sort_leaves = false;
+    config->split_by_summarizations = false;
 
     config->k = 1;
 
@@ -147,6 +149,9 @@ Config *initializeConfig(int argc, char **argv) {
             case 19:
                 config->sort_leaves = true;
                 break;
+            case 20:
+                config->split_by_summarizations = true;
+                break;
             default:
                 exit(EXIT_FAILURE);
         }
@@ -192,6 +197,7 @@ void logConfig(Config const *config) {
     clog_info(CLOG(CLOGGER_ID), "config - leaf_size = %lu", config->leaf_size);
     clog_info(CLOG(CLOGGER_ID), "config - initial_leaf_size = %lu", config->initial_leaf_size);
     clog_info(CLOG(CLOGGER_ID), "config - sort_leaves = %d", config->sort_leaves);
+    clog_info(CLOG(CLOGGER_ID), "config - split_by_summarizations = %d", config->split_by_summarizations);
 
     clog_info(CLOG(CLOGGER_ID), "config - cpu_cores = %d", config->cpu_cores);
     clog_info(CLOG(CLOGGER_ID), "config - numa_cores = %d", config->numa_cores);

@@ -141,7 +141,7 @@ Answer *initializeAnswer(Config const *config) {
     answer->size = 0;
     answer->k = config->k;
     answer->distances = malloc(sizeof(Value) * config->k);
-    answer->distances[0] = FLT_MAX;
+    answer->distances[0] = VALUE_MAX;
 
     answer->lock = malloc(sizeof(pthread_rwlock_t));
     assert(pthread_rwlock_init(answer->lock, NULL) == 0);
@@ -149,6 +149,10 @@ Answer *initializeAnswer(Config const *config) {
     return answer;
 }
 
+void cleanAnswer(Answer *answer) {
+    answer->size = 0;
+    answer->distances[0] = VALUE_MAX;
+}
 
 void freeAnswer(Answer *answer) {
     free(answer->distances);

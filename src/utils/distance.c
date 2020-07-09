@@ -37,7 +37,7 @@ Value l2SquareEarly(unsigned int length, Value const *left, Value const *right, 
     Value sum = 0;
 
     for (unsigned int i = 0; i < length; ++i) {
-        if (VALUE_G(sum += (left[i] - right[i]) * (left[i] - right[i]), threshold)) {
+        if (VALUE_G((sum += ((left[i] - right[i]) * (left[i] - right[i]))), threshold)) {
             return sum;
         }
     }
