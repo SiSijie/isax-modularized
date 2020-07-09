@@ -10,7 +10,7 @@
 #include <pthread.h>
 
 
-//#define DEBUG
+#define DEBUG
 
 
 #define FINE_TIMING
@@ -37,17 +37,22 @@ unsigned int query_id_profiling;
 #define CLOGGER_ID 0
 
 
+#define VALUE_MAX 1e11
+#define VALUE_MIN -1e11
+#define VALUE_EPSILON 1e-7
+
 typedef float Value;
 // TODO only supports sax_cardinality <= 8
 typedef unsigned char SAXWord;
 typedef unsigned int SAXMask;
 
 
-#define VALUE_L(left, right) (right - left > FLT_EPSILON)
-#define VALUE_G(left, right) (left - right > FLT_EPSILON)
-#define VALUE_LEQ(left, right) (left - right <= FLT_EPSILON)
-#define VALUE_GEQ(left, right) (right - left <= FLT_EPSILON)
-#define VALUE_EQ(left, right) ((left - right <= FLT_EPSILON) && (right - left <= FLT_EPSILON))
+#define VALUE_L(left, right) ((right) - (left) > VALUE_EPSILON)
+#define VALUE_G(left, right) ((left) - (right) > VALUE_EPSILON)
+#define VALUE_LEQ(left, right) ((left) - (right) <= VALUE_EPSILON)
+#define VALUE_GEQ(left, right) ((right) - (left) <= VALUE_EPSILON)
+#define VALUE_EQ(left, right) (VALUE_LEQ(left, right) && VALUE_GEQ(left, right))
+#define VALUE_NEQ(left, right) (VALUE_L(left, right) || VALUE_G(left, right))
 
 
 static inline int VALUE_COMPARE(void const *left, void const *right) {
