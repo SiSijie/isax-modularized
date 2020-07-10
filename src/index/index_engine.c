@@ -69,8 +69,8 @@ unsigned int decideSplitSegmentByNextBit(Index *index, Node *parent, unsigned in
                 smallest_difference = abs(difference);
 
 #ifdef DEBUG
-                clog_debug(CLOG(CLOGGER_ID), "index - difference of segment %d of mask %d = %d ~ %d", i, next_bit,
-                           difference, smallest_difference);
+                clog_debug(CLOG(CLOGGER_ID), "index - difference of segment %d of mask %d = %d", i, next_bit,
+                           difference);
 #endif
             }
         }
@@ -273,3 +273,106 @@ void buildIndex(Config const *config, Index *index) {
     clog_info(CLOG(CLOGGER_ID), "index - build = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
 #endif
 }
+
+
+void fetchPermutation(Node *node, int *permutation, int *counter) {
+    if (node->size == 0) {
+        assert(node->left != NULL && node->right != NULL);
+        fetchPermutation(node->left, permutation, counter);
+        fetchPermutation(node->right, permutation, counter);
+    } else {
+        assert(node->left == NULL && node->right == NULL);
+
+        node->start_id = *counter;
+
+        for (unsigned int i = 0; i < node->size; ++i) {
+            permutation[node->ids[i]] = *counter;
+            *counter += 1;
+        }
+
+        free(node->ids);
+        node->ids = NULL;
+    }
+}
+
+
+void permute(Value *values, SAXWord *saxs, int *permutation, int size, unsigned long series_length,
+             unsigned long sax_length) {
+    unsigned long series_bytes = sizeof(Value) * series_length, sax_bytes = sizeof(SAXWord) * sax_length;
+    Value *values_cache = malloc(series_bytes);
+    SAXWord *sax_cache = malloc(sax_bytes);
+
+    for (unsigned long next, tmp, i = 0; i < size; ++i) {
+        next = i;
+
+        while (permutation[next] >= 0) {
+//#ifdef DEBUG
+//            clog_debug(CLOG(CLOGGER_ID), "index - i --> permutation[next] = %d --> %d", i, permutation[next]);
+//#endif
+
+            memcpy(values_cache, values + series_length * i, series_bytes);
+            memcpy(values + series_length * i, values + series_length * permutation[next], series_bytes);
+            memcpy(values + series_length * permutation[next], values_cache, series_bytes);
+
+            memcpy(sax_cache, saxs + sax_length * i, sax_bytes);
+            memcpy(saxs + sax_length * i, saxs + sax_length * permutation[next], sax_bytes);
+            memcpy(saxs + sax_length * permutation[next], sax_cache, sax_bytes);
+
+            tmp = permutation[next];
+            permutation[next] -= size;
+            next = tmp;
+
+//#ifdef DEBUG
+//            clog_debug(CLOG(CLOGGER_ID), "index - next --> permutation[next] = %d --> %d", next, permutation[next]);
+//#endif
+        }
+    }
+
+    free(values_cache);
+    free(sax_cache);
+}
+
+
+void finalizeIndex(Index *index) {
+#ifdef FINE_TIMING
+    clock_t start_clock = clock();
+#endif
+
+    int *permutation = malloc(sizeof(int) * index->database_size);
+    int counter = 0;
+
+#ifdef DEBUG
+    for (unsigned int i = 0; i < index->database_size; ++i) {
+        permutation[i] = -1 - (int) index->database_size;
+    }
+#endif
+
+    for (unsigned int i = 0; i < index->roots_size; ++i) {
+        if (index->roots[i]->size == 0 && index->roots[i]->left == NULL) {
+            freeNode(index->roots[i], false, true);;
+            index->roots[i] = NULL;
+        } else {
+            fetchPermutation(index->roots[i], permutation, &counter);
+        }
+    }
+
+#ifdef DEBUG
+    for (unsigned int i = 0; i < index->database_size; ++i) {
+        if (permutation[i] == -1 - (int) index->database_size) {
+            clog_error(CLOG(CLOGGER_ID), "index - no destination for %d", i);
+        }
+    }
+#endif
+
+    assert(counter == index->database_size);
+
+    permute((Value *) index->values, (SAXWord *) index->saxs, permutation, (int) index->database_size,
+            index->series_length, index->sax_length);
+
+    free((Value *) index->summarizations);
+
+#ifdef FINE_TIMING
+    clog_info(CLOG(CLOGGER_ID), "index - finalize = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+#endif
+}
+

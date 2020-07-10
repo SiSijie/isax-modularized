@@ -20,6 +20,7 @@ typedef struct Node {
     SAXMask *masks;
 
     unsigned int *ids;
+    unsigned int start_id;
     unsigned int size;
     unsigned int capacity;
 

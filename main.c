@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
     free(log_lock_profiling);
 #endif
 
-    freeIndex(config, index);
+    freeIndex(index);
     freeQuery(queries);
     free((Config *) config);
 

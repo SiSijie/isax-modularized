@@ -11,6 +11,7 @@ Node *initializeNode(SAXWord *sax, SAXMask *masks) {
     node->sax = sax;
     node->masks = masks;
     node->ids = NULL;
+    node->start_id = 0;
 
     node->size = 0;
     node->capacity = 0;
@@ -65,7 +66,10 @@ void freeNode(Node *node, bool free_mask, bool free_sax) {
             free(node->sax);
         }
 
-        free(node->ids);
+        if (node->ids != NULL) {
+            free(node->ids);
+        }
+
         pthread_mutex_destroy(node->lock);
         free(node->lock);
         free(node);

@@ -10,7 +10,7 @@
 #include <pthread.h>
 
 
-#define DEBUG
+//#define DEBUG
 
 
 #define FINE_TIMING
@@ -23,7 +23,7 @@
 #endif
 
 
-#define PROFILING
+//#define PROFILING
 
 #ifdef PROFILING
 unsigned int visited_leaves_counter_profiling;
@@ -53,6 +53,13 @@ typedef unsigned int SAXMask;
 #define VALUE_GEQ(left, right) ((right) - (left) <= VALUE_EPSILON)
 #define VALUE_EQ(left, right) (VALUE_LEQ(left, right) && VALUE_GEQ(left, right))
 #define VALUE_NEQ(left, right) (VALUE_L(left, right) || VALUE_G(left, right))
+
+//#define VALUE_L(left, right) ((left) < (right))
+//#define VALUE_G(left, right) ((left) > (right))
+//#define VALUE_LEQ(left, right) ((left) <= (right))
+//#define VALUE_GEQ(left, right) ((left) >= (right) )
+//#define VALUE_EQ(left, right) ((left) == (right))
+//#define VALUE_NEQ(left, right) ((left) != (right))
 
 
 static inline int VALUE_COMPARE(void const *left, void const *right) {

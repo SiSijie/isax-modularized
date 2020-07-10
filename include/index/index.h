@@ -41,9 +41,7 @@ unsigned int rootSAX2ID(SAXWord const *saxs, unsigned int num_segments, unsigned
 
 Index *initializeIndex(Config const *config);
 
-void finalizeIndex(Index *index);
-
-void freeIndex(Config const *config, Index *index);
+void freeIndex(Index *index);
 
 void logIndex(Index *index);
 

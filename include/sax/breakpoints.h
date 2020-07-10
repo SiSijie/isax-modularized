@@ -16,8 +16,9 @@
 
 
 static unsigned int const OFFSETS_BY_CARDINALITY[9] = {
-        0, 3, 8, 17, 34,
-        67, 132, 261, 518
+        0, 3, 8, 17,
+        34, 67, 132, 261,
+        518
 };
 
 
@@ -29,11 +30,10 @@ static unsigned int const OFFSETS_BY_SEGMENTS[17] = {
 };
 
 
-__m256i *M256I_OFFSETS_BY_SEGMENTS;
 //__m256i const M256I_1 = (__m256i) (__v8si) {1, 1, 1, 1, 1, 1, 1, 1};
 // it's weired that (__m256i) (__v8si) {1, 1, 1, 1, 1, 1, 1, 1} isn't regarded as constant
-__m256i M256I_1;
-
+__m256i M256I_1, M256I_BREAKPOINTS8_OFFSETS_0_7, M256I_BREAKPOINTS8_OFFSETS_8_15;
+__m256i *M256I_OFFSETS_BY_SEGMENTS;
 
 static unsigned int const OFFSETS_BY_MASK[129] = {
         0, 261, 132, 0, 67, 0, 0, 0, 34, 0, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

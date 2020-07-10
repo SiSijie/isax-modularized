@@ -136,50 +136,10 @@ Index *initializeIndex(Config const *config) {
 }
 
 
-void truncateNode(Node *node) {
-    if (node != NULL) {
-        if (node->size != 0) {
-            node->ids = realloc(node->ids, sizeof(unsigned int) * node->size);
-            node->capacity = node->size;
-        }
-
-        if (node->left != NULL) {
-            truncateNode(node->left);
-            truncateNode(node->right);
-        }
-    }
-}
-
-
-void finalizeIndex(Index *index) {
-#ifdef FINE_TIMING
-    clock_t start_clock = clock();
-#endif
-
-//    free((Value *) index->summarizations);
-
-    for (unsigned int i = 0; i < index->roots_size; ++i) {
-        if (index->roots[i]->size == 0 && index->roots[i]->left == NULL) {
-            freeNode(index->roots[i], false, true);;
-            index->roots[i] = NULL;
-        }
-    }
-
-    for (unsigned int i = 0; i < index->roots_size; ++i) {
-        truncateNode(index->roots[i]);
-    }
-
-#ifdef FINE_TIMING
-    clog_info(CLOG(CLOGGER_ID), "index - finalize = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
-#endif
-}
-
-
-void freeIndex(Config const *config, Index *index) {
+void freeIndex(Index *index) {
     free((Value *) index->values);
     free((SAXWord *) index->saxs);
     free((Value *) index->breakpoints);
-    free((Value *) index->summarizations);
 
     bool first_root = true;
     for (unsigned int i = 0; i < index->roots_size; ++i) {

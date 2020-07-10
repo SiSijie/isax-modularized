@@ -87,19 +87,6 @@ summarizations2SAXs(Value const *summarizations, Value const *breakpoints, unsig
 }
 
 
-Value l2SquareValue2SAXWord(Value value, SAXWord sax_word, Value const *breakpoints) {
-    unsigned int breakpoint_floor = (unsigned int) sax_word;
-
-    if (VALUE_L(value, breakpoints[breakpoint_floor])) {
-        return (breakpoints[breakpoint_floor] - value) * (breakpoints[breakpoint_floor] - value);
-    } else if (VALUE_GEQ(value, breakpoints[breakpoint_floor + 1])) {
-        return (value - breakpoints[breakpoint_floor + 1]) * (value - breakpoints[breakpoint_floor + 1]);
-    }
-
-    return 0;
-}
-
-
 Value l2SquareValue2SAXByMask(unsigned int sax_length, Value const *summarizations, SAXWord const *sax,
                               SAXMask const *masks, Value const *breakpoints, Value scale_factor) {
     Value sum = 0;
@@ -111,7 +98,26 @@ Value l2SquareValue2SAXByMask(unsigned int sax_length, Value const *summarizatio
 
         if (VALUE_L(summarizations[i], *current_breakpoints)) {
             sum += (*current_breakpoints - summarizations[i]) * (*current_breakpoints - summarizations[i]);
-        } else if (VALUE_GEQ(summarizations[i], *(current_breakpoints + 1))) {
+        } else if (VALUE_G(summarizations[i], *(current_breakpoints + 1))) {
+            sum += (summarizations[i] - *(current_breakpoints + 1)) * (summarizations[i] - *(current_breakpoints + 1));
+        }
+    }
+
+    return sum * scale_factor;
+}
+
+
+Value l2SquareValue2SAX8(unsigned int sax_length, Value const *summarizations, SAXWord const *sax,
+                         Value const *breakpoints, Value scale_factor) {
+    Value sum = 0;
+    Value const *current_breakpoints;
+
+    for (unsigned int i = 0; i < sax_length; ++i) {
+        current_breakpoints = breakpoints + OFFSETS_BY_SEGMENTS[i] + OFFSETS_BY_CARDINALITY[7] + (unsigned int) sax[i];
+
+        if (VALUE_L(summarizations[i], *current_breakpoints)) {
+            sum += (*current_breakpoints - summarizations[i]) * (*current_breakpoints - summarizations[i]);
+        } else if (VALUE_G(summarizations[i], *(current_breakpoints + 1))) {
             sum += (summarizations[i] - *(current_breakpoints + 1)) * (summarizations[i] - *(current_breakpoints + 1));
         }
     }
@@ -174,8 +180,56 @@ Value l2SquareValue2SAXByMaskSIMD(unsigned int sax_length, Value const *summariz
     }
 
     m256_l2square = _mm256_hadd_ps(m256_l2square, m256_l2square);
+    _mm256_storeu_ps(M256_FETCHED, _mm256_hadd_ps(m256_l2square, m256_l2square));
+
+    return (M256_FETCHED[0] + M256_FETCHED[4]) * scale_factor;
+}
+
+
+Value l2SquareValue2SAX8SIMD(unsigned int sax_length, Value const *summarizations, SAXWord const *sax,
+                             Value const *breakpoints, Value scale_factor) {
+    __m256 m256_summarizations = _mm256_loadu_ps(summarizations);
+    __m256i m256i_sax_packed = _mm256_cvtepu8_epi16(_mm_lddqu_si128((__m128i const *) sax));
+
+    __m256i m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 0));
+    __m256i m256i_breakpoint_indices = _mm256_add_epi32(m256i_sax, M256I_BREAKPOINTS8_OFFSETS_0_7);
+
+    __m256 m256_floor_breakpoints = _mm256_i32gather_ps(breakpoints, m256i_breakpoint_indices, 4);
+    __m256 m256_ceiling_breakpoints = _mm256_i32gather_ps(breakpoints,
+                                                          _mm256_add_epi32(m256i_breakpoint_indices, M256I_1), 4);
+
+    __m256 m256_distances2floor = _mm256_and_ps(_mm256_sub_ps(m256_floor_breakpoints, m256_summarizations),
+                                                _mm256_cmp_ps(m256_summarizations, m256_floor_breakpoints, _CMP_LT_OS));
+    __m256 m256_distances2ceiling = _mm256_and_ps(_mm256_sub_ps(m256_summarizations, m256_ceiling_breakpoints),
+                                                  _mm256_cmp_ps(m256_summarizations, m256_ceiling_breakpoints,
+                                                                _CMP_GT_OS));
+
+    __m256 m256_distances = _mm256_add_ps(m256_distances2floor, m256_distances2ceiling);
+    __m256 m256_l2square = _mm256_mul_ps(m256_distances, m256_distances);
+
+    // sax_length == 8 or 16, ONLY
+    if (sax_length == 16) {
+        m256_summarizations = _mm256_loadu_ps(summarizations + 8);
+
+        m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 1));
+        m256i_breakpoint_indices = _mm256_add_epi32(m256i_sax, M256I_BREAKPOINTS8_OFFSETS_8_15);
+
+        m256_floor_breakpoints = _mm256_i32gather_ps(breakpoints, m256i_breakpoint_indices, 4);
+        m256_ceiling_breakpoints = _mm256_i32gather_ps(breakpoints,
+                                                       _mm256_add_epi32(m256i_breakpoint_indices, M256I_1), 4);
+
+        m256_distances2floor = _mm256_and_ps(_mm256_sub_ps(m256_floor_breakpoints, m256_summarizations),
+                                             _mm256_cmp_ps(m256_summarizations, m256_floor_breakpoints, _CMP_LT_OS));
+        m256_distances2ceiling = _mm256_and_ps(_mm256_sub_ps(m256_summarizations, m256_ceiling_breakpoints),
+                                               _mm256_cmp_ps(m256_summarizations, m256_ceiling_breakpoints,
+                                                             _CMP_GT_OS));
+
+        m256_distances = _mm256_add_ps(m256_distances2floor, m256_distances2ceiling);
+        m256_l2square = _mm256_fmadd_ps(m256_distances, m256_distances, m256_l2square);
+    }
+
     m256_l2square = _mm256_hadd_ps(m256_l2square, m256_l2square);
-    _mm256_storeu_ps(M256_FETCHED, m256_l2square);
+    _mm256_storeu_ps(M256_FETCHED, _mm256_hadd_ps(m256_l2square, m256_l2square));
 
     return (M256_FETCHED[0] + M256_FETCHED[4]) * scale_factor;
 }

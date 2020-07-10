@@ -19,90 +19,85 @@ typedef struct QueryCache {
     Value const *query_summarization;
 
     unsigned int *shared_leaf_id;
-
-    SAXMask const *masks8;
 } QueryCache;
 
 
 void *queryThread(void *cache) {
     QueryCache *queryCache = (QueryCache *) cache;
+    Index const *index = queryCache->index;
+    Answer *answer = queryCache->answer;
+    pthread_rwlock_t *lock = answer->lock;
 
     unsigned int leaf_id;
+    Value local_bsf, local_distance;
+
     while ((leaf_id = __sync_fetch_and_add(queryCache->shared_leaf_id, 1)) < queryCache->num_leaves) {
         Node const *const leaf = queryCache->leaves[leaf_id];
 
-        // TODO only using local_bsf suffers from the problem that approximate nearest neighbours < k and never updated
-//        pthread_rwlock_rdlock(queryCache->answer->lock);
-        Value local_bsf = getBSF(queryCache->answer);
-//        pthread_rwlock_unlock(queryCache->answer->lock);
+        pthread_rwlock_rdlock(lock);
+        local_bsf = getBSF(answer);
+        pthread_rwlock_unlock(lock);
 
+        // TODO only using local_bsf suffers from the problem that approximate nearest neighbours < k and never updated
         if (VALUE_G(local_bsf, queryCache->leaf_distances[leaf_id])) {
 #ifdef PROFILING
             __sync_fetch_and_add(&visited_leaves_counter_profiling, 1);
 #endif
 
-            for (unsigned int i = 0; i < leaf->size; ++i) {
+            for (unsigned int i = leaf->start_id; i < leaf->start_id + leaf->size; ++i) {
 #ifdef PROFILING
                 __sync_fetch_and_add(&visited_series_counter_profiling, 1);
 #endif
 
 #ifdef DEBUG
-                Value result = l2SquareValue2SAXByMask(queryCache->index->sax_length, queryCache->query_summarization,
-                                                       queryCache->index->saxs +
-                                                       leaf->ids[i] * queryCache->index->sax_length,
-                                                       queryCache->masks8, queryCache->index->breakpoints,
-                                                       queryCache->scale_factor);
-                Value resultSIMD = l2SquareValue2SAXByMaskSIMD(queryCache->index->sax_length,
-                                                               queryCache->query_summarization,
-                                                               queryCache->index->saxs +
-                                                               leaf->ids[i] * queryCache->index->sax_length,
-                                                               queryCache->masks8, queryCache->index->breakpoints,
-                                                               queryCache->scale_factor);
+                Value result = l2SquareValue2SAX8(index->sax_length, queryCache->query_summarization,
+                                                  index->saxs + index->sax_length * i, index->breakpoints,
+                                                  queryCache->scale_factor);
+                Value resultSIMD = l2SquareValue2SAX8SIMD(index->sax_length, queryCache->query_summarization,
+                                                          index->saxs + index->sax_length * i,
+                                                          index->breakpoints, queryCache->scale_factor);
 
-                if (result - resultSIMD > 1e4 || resultSIMD - result > 1e4) {
-                    clog_debug(CLOG(CLOGGER_ID), "query - paa-sax l2square = %f ~ %f (SIMD)", result, resultSIMD);
+                if (result - resultSIMD > 1e5 || resultSIMD - result > 1e5) {
+                    clog_error(CLOG(CLOGGER_ID), "query - paa-sax l2square = %f ~ %f (SIMD)", result, resultSIMD);
                 }
 #endif
 
                 // ignoring equivalence for performance
                 if (VALUE_G(local_bsf,
-                            l2SquareValue2SAXByMaskSIMD(queryCache->index->sax_length, queryCache->query_summarization,
-                                                        queryCache->index->saxs +
-                                                        leaf->ids[i] * queryCache->index->sax_length,
-                                                        queryCache->masks8, queryCache->index->breakpoints,
-                                                        queryCache->scale_factor))) {
+                            l2SquareValue2SAX8SIMD(index->sax_length, queryCache->query_summarization,
+                                                   index->saxs + index->sax_length * i, index->breakpoints,
+                                                   queryCache->scale_factor))) {
 #ifdef PROFILING
                     __sync_fetch_and_add(&calculated_series_counter_profiling, 1);
 #endif
 
 #ifdef DEBUG
-                    result = l2Square(queryCache->index->series_length, queryCache->query_values,
-                                      queryCache->index->values +
-                                      leaf->ids[i] * queryCache->index->series_length);
-                    resultSIMD = l2SquareSIMD(queryCache->index->series_length, queryCache->query_values,
-                                              queryCache->index->values +
-                                              leaf->ids[i] * queryCache->index->series_length);
+                    result = l2Square(index->series_length, queryCache->query_values,
+                                      index->values + index->series_length * i);
+                    resultSIMD = l2SquareSIMD(index->series_length, queryCache->query_values,
+                                              index->values + index->series_length * i);
 
-                    if (result - resultSIMD > 1e4 || resultSIMD - result > 1e4) {
-                        clog_debug(CLOG(CLOGGER_ID), "query - l2square = %f ~ %f (SIMD)", result, resultSIMD);
+                    if (result - resultSIMD > 1e5 || resultSIMD - result > 1e5) {
+                        clog_error(CLOG(CLOGGER_ID), "query - l2square = %f ~ %f (SIMD)", result, resultSIMD);
                     }
 #endif
 
-                    Value local_distance = l2SquareEarlySIMD(queryCache->index->series_length, queryCache->query_values,
-                                                             queryCache->index->values +
-                                                             queryCache->index->series_length * leaf->ids[i],
-                                                             local_bsf);
+                    local_distance = l2SquareEarlySIMD(index->series_length, queryCache->query_values,
+                                                       index->values + index->series_length * i, local_bsf);
+
                     // ignoring equivalence for performance
                     if (VALUE_G(local_bsf, local_distance)) {
-                        pthread_rwlock_wrlock(queryCache->answer->lock);
+                        pthread_rwlock_wrlock(lock);
 
-                        checkNUpdateBSF(queryCache->answer, local_distance);
-                        local_bsf = getBSF(queryCache->answer);
+                        checkNUpdateBSF(answer, local_distance);
+                        local_bsf = getBSF(answer);
 
-                        pthread_rwlock_unlock(queryCache->answer->lock);
+                        pthread_rwlock_unlock(lock);
                     }
                 }
             }
+        } else {
+            return NULL;
         }
     }
 
@@ -176,11 +171,6 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
 
     QueryCache queryCache[config->max_threads];
 
-    SAXMask *masks8 = malloc(sizeof(SAXMask) * config->sax_length);
-    for (unsigned int i = 0; i < config->sax_length; ++i) {
-        masks8[i] = 1u;
-    }
-
 #ifdef FINE_TIMING
     clock_t start_clock = clock();
 #endif
@@ -228,15 +218,14 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
             clog_info(CLOG(CLOGGER_ID), "query %d - affiliated leaf size = %d", i, node->size);
 #endif
 
-            for (unsigned int j = 0; j < node->size; ++j) {
+            for (unsigned int j = node->start_id; j < node->start_id + node->size; ++j) {
 #ifdef PROFILING
                 visited_series_counter_profiling += 1;
                 calculated_series_counter_profiling += 1;
 #endif
 
                 checkNUpdateBSF(answer, l2SquareEarlySIMD(config->series_length, query_values,
-                                                          index->values + config->series_length * node->ids[j],
-                                                          getBSF(answer)));
+                                                          index->values + config->series_length * j, getBSF(answer)));
             }
         }
 
@@ -272,36 +261,42 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
 #endif
 
 #ifdef DEBUG
-            for (unsigned int j = 0; j < num_leaves - 1; ++j) {
-                Value distance = VALUE_MAX, next_distance = VALUE_MAX;
+            Value last_distance = VALUE_MAX, distance;
+
+            if (leaves[0] != node) {
+                last_distance = l2SquareValue2SAXByMaskSIMD(config->sax_length, query_summarization,
+                                                            leaves[0]->sax, leaves[0]->masks,
+                                                            index->breakpoints, scale_factor);
+            }
+
+            if (VALUE_NEQ(last_distance, leaf_distances[0])) {
+                clog_error(CLOG(CLOGGER_ID), "query - corrupted leaves %d = %f ~ %f (stored)", 0, last_distance,
+                           leaf_distances[0]);
+            }
+
+            for (unsigned int j = 1; j < num_leaves; ++j) {
+
                 if (leaves[j] != node) {
                     distance = l2SquareValue2SAXByMaskSIMD(config->sax_length, query_summarization,
                                                            leaves[j]->sax, leaves[j]->masks,
                                                            index->breakpoints, scale_factor);
-                } else if (leaves[j + 1] != node) {
-                    next_distance = l2SquareValue2SAXByMaskSIMD(config->sax_length, query_summarization,
-                                                                leaves[j + 1]->sax, leaves[j + 1]->masks,
-                                                                index->breakpoints, scale_factor);
+                } else {
+                    distance = VALUE_MAX;
                 }
 
-                if (VALUE_G(leaf_distances[j], leaf_distances[j + 1])) {
-                    clog_debug(CLOG(CLOGGER_ID), "query - disordered leaves (stored) %d-%d = %f ~ %f", j, j + 1,
-                               leaf_distances[j], leaf_distances[j + 1]);
+                if (VALUE_G(leaf_distances[j - 1], leaf_distances[j])) {
+                    clog_error(CLOG(CLOGGER_ID), "query - disordered leaves (stored) %d-%d = %f ~ %f", j - 1, j,
+                               leaf_distances[j - 1], leaf_distances[j]);
                 }
 
-                if (VALUE_G(distance, next_distance)) {
-                    clog_debug(CLOG(CLOGGER_ID), "query - disordered leaves (calculated) %d-%d = %f ~ %f", j, j + 1,
-                               distance, next_distance);
+                if (VALUE_G(last_distance, distance)) {
+                    clog_error(CLOG(CLOGGER_ID), "query - disordered leaves (calculated) %d-%d = %f ~ %f", j - 1, j,
+                               last_distance, distance);
                 }
 
-                if (VALUE_NEQ(distance,leaf_distances[j])) {
-                    clog_debug(CLOG(CLOGGER_ID), "query - mismatched leaves %d = %f ~ %f (stored)", j, distance,
+                if (VALUE_NEQ(distance, leaf_distances[j])) {
+                    clog_error(CLOG(CLOGGER_ID), "query - corrupted leaves %d = %f ~ %f (stored)", j, distance,
                                leaf_distances[j]);
-                }
-
-                if (j + 2 == num_leaves && VALUE_NEQ(next_distance, leaf_distances[j + 1])) {
-                    clog_debug(CLOG(CLOGGER_ID), "query - mismatched leaves %d = %f ~ %f (stored)", j + 1, distance,
-                               leaf_distances[j + 1]);
                 }
             }
 #endif
@@ -326,8 +321,6 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
                 queryCache[j].scale_factor = scale_factor;
 
                 queryCache[j].shared_leaf_id = &shared_leaf_id;
-
-                queryCache[j].masks8 = (SAXMask const *) masks8;
 
                 pthread_create(&threads[j], NULL, queryThread, (void *) &queryCache[j]);
             }

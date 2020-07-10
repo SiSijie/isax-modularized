@@ -6,9 +6,7 @@
 #define ISAX_QUERY_H
 
 #include <time.h>
-#include <float.h>
 #include <stdlib.h>
-#include <pthread.h>
 
 #include "globals.h"
 #include "config.h"
@@ -28,30 +26,9 @@ typedef struct QuerySet {
 } QuerySet;
 
 
-typedef struct Answer {
-    pthread_rwlock_t *lock;
-
-    Value *distances; // max-heap
-
-    unsigned int size;
-    unsigned int k;
-} Answer;
-
-
 QuerySet *initializeQuery(Config const *config, Index const *index);
 
 void freeQuery(QuerySet *queries);
 
-Answer *initializeAnswer(Config const *config);
-
-void cleanAnswer(Answer *answer);
-
-void freeAnswer(Answer *answer);
-
-int checkNUpdateBSF(Answer * answer, Value distance);
-
-void logAnswer(unsigned int query_id, Answer *answer);
-
-Value getBSF(Answer * answer);
 
 #endif //ISAX_QUERY_H

@@ -61,7 +61,15 @@ static Value const NORMAL_BREAKPOINTS_8[255] = {
 
 void initializeM256IConstants() {
     M256I_1 = _mm256_set1_epi32(1);
+
     M256I_OFFSETS_BY_SEGMENTS = (__m256i *) OFFSETS_BY_SEGMENTS;
+
+    __m256i m256i_cardinality8_offsets = _mm256_i32gather_epi32(OFFSETS_BY_MASK, M256I_1, 4);
+
+    M256I_BREAKPOINTS8_OFFSETS_0_7 = _mm256_add_epi32(_mm256_loadu_si256(M256I_OFFSETS_BY_SEGMENTS),
+                                                      m256i_cardinality8_offsets);
+    M256I_BREAKPOINTS8_OFFSETS_8_15 = _mm256_add_epi32(_mm256_loadu_si256(M256I_OFFSETS_BY_SEGMENTS + 1),
+                                                       m256i_cardinality8_offsets);
 }
 
 

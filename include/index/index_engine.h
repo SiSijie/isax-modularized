@@ -18,4 +18,6 @@
 
 void buildIndex(Config const *config, Index *index);
 
+void finalizeIndex(Index *index);
+
 #endif //ISAX_INDEX_ENGINE_H
