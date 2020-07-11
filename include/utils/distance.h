@@ -10,16 +10,12 @@
 
 #include "globals.h"
 
-
-Value M256_FETCHED[8];
-
-
 Value l2Square(unsigned int length, Value const *left, Value const *right);
 
-Value l2SquareSIMD(unsigned int length, Value const *left, Value const *right);
+Value l2SquareSIMD(unsigned int length, Value const *left, Value const *right, Value *cache);
 
 Value l2SquareEarly(unsigned int length, Value const *left, Value const *right, Value threshold);
 
-Value l2SquareEarlySIMD(unsigned int length, Value const *left, Value const *right, Value threshold);
+Value l2SquareEarlySIMD(unsigned int length, Value const *left, Value const *right, Value threshold, Value *cache);
 
 #endif //ISAX_DISTANCE_H

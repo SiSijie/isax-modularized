@@ -25,9 +25,9 @@ Value l2SquareValue2SAX8(unsigned int sax_length, Value const *summarizations, S
                          Value const *breakpoints, Value scale_factor);
 
 Value l2SquareValue2SAXByMaskSIMD(unsigned int sax_length, Value const *summarizations, SAXWord const *sax,
-                                  SAXMask const *masks, Value const *breakpoints, Value scale_factor);
+                                  SAXMask const *masks, Value const *breakpoints, Value scale_factor, Value *cache);
 
 Value l2SquareValue2SAX8SIMD(unsigned int sax_length, Value const *summarizations, SAXWord const *sax,
-                             Value const *breakpoints, Value scale_factor);
+                             Value const *breakpoints, Value scale_factor, Value *cache);
 
 #endif //ISAX_SAX_H

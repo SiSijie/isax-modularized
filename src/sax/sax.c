@@ -127,7 +127,7 @@ Value l2SquareValue2SAX8(unsigned int sax_length, Value const *summarizations, S
 
 
 Value l2SquareValue2SAXByMaskSIMD(unsigned int sax_length, Value const *summarizations, SAXWord const *sax,
-                                  SAXMask const *masks, Value const *breakpoints, Value scale_factor) {
+                                  SAXMask const *masks, Value const *breakpoints, Value scale_factor, Value *cache) {
     __m256i const *m256i_masks = (__m256i const *) masks;
     __m256i m256i_sax_packed = _mm256_cvtepu8_epi16(_mm_lddqu_si128((__m128i const *) sax));
 
@@ -180,14 +180,14 @@ Value l2SquareValue2SAXByMaskSIMD(unsigned int sax_length, Value const *summariz
     }
 
     m256_l2square = _mm256_hadd_ps(m256_l2square, m256_l2square);
-    _mm256_storeu_ps(M256_FETCHED, _mm256_hadd_ps(m256_l2square, m256_l2square));
+    _mm256_storeu_ps(cache, _mm256_hadd_ps(m256_l2square, m256_l2square));
 
-    return (M256_FETCHED[0] + M256_FETCHED[4]) * scale_factor;
+    return (cache[0] + cache[4]) * scale_factor;
 }
 
 
 Value l2SquareValue2SAX8SIMD(unsigned int sax_length, Value const *summarizations, SAXWord const *sax,
-                             Value const *breakpoints, Value scale_factor) {
+                             Value const *breakpoints, Value scale_factor, Value *cache) {
     __m256 m256_summarizations = _mm256_loadu_ps(summarizations);
     __m256i m256i_sax_packed = _mm256_cvtepu8_epi16(_mm_lddqu_si128((__m128i const *) sax));
 
@@ -229,7 +229,7 @@ Value l2SquareValue2SAX8SIMD(unsigned int sax_length, Value const *summarization
     }
 
     m256_l2square = _mm256_hadd_ps(m256_l2square, m256_l2square);
-    _mm256_storeu_ps(M256_FETCHED, _mm256_hadd_ps(m256_l2square, m256_l2square));
+    _mm256_storeu_ps(cache, _mm256_hadd_ps(m256_l2square, m256_l2square));
 
-    return (M256_FETCHED[0] + M256_FETCHED[4]) * scale_factor;
+    return (cache[0] + cache[4]) * scale_factor;
 }
