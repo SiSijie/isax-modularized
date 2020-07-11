@@ -6,8 +6,7 @@ project(isax C)
 
 set(CMAKE_C_STANDARD 11)
 
-# following MESSI
-add_compile_options(-O2)
+add_compile_options(-Ofast)
 
 # include of directory-level rather than target-level (preferred) only for CLion to resolve symbols
 include_directories(include/index)
@@ -28,8 +27,5 @@ add_executable(isax main.c)
 
 target_link_libraries(isax PRIVATE query index sax paa utils)
 target_link_libraries(isax PUBLIC pthread m)
-
-#add_compile_options(-g -ggdb)
-#set(CMAKE_BUILD_TYPE Debug)
 
 install(TARGETS isax DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/bin)
