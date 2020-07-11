@@ -68,10 +68,10 @@ unsigned int decideSplitSegmentByNextBit(Index *index, Node *parent, unsigned in
                 segment_to_split = i;
                 smallest_difference = abs(difference);
 
-#ifdef DEBUG
-                clog_debug(CLOG(CLOGGER_ID), "index - difference of segment %d of mask %d = %d", i, next_bit,
-                           difference);
-#endif
+//#ifdef DEBUG
+//                clog_debug(CLOG(CLOGGER_ID), "index - difference of segment %d of mask %d = %d", i, next_bit,
+//                           difference);
+//#endif
             }
         }
     }
@@ -124,10 +124,10 @@ unsigned int decideSplitSegmentByDistribution(Index *index, Node *parent, unsign
                 bsf = fabs(tmp - mean);
                 segment_to_split = i;
 
-#ifdef DEBUG
-                clog_debug(CLOG(CLOGGER_ID), "index - mean2breakpoint of s%d (%d / %d-->%d) = %f",
-                           i, parent->sax[i], parent->masks[i], next_mask, bsf);
-#endif
+//#ifdef DEBUG
+//                clog_debug(CLOG(CLOGGER_ID), "index - mean2breakpoint of s%d (%d / %d-->%d) = %f",
+//                           i, parent->sax[i], parent->masks[i], next_mask, bsf);
+//#endif
             }
         }
     }
@@ -142,25 +142,25 @@ unsigned int decideSplitSegmentByDistribution(Index *index, Node *parent, unsign
 
 
 void splitNode(Index *index, Node *parent, unsigned int num_segments, bool split_by_summarizations) {
-#ifdef DEBUG
-    for (unsigned int i = 0; i < num_segments; i += 8) {
-        clog_debug(CLOG(CLOGGER_ID), "index - sax %d-%d (node) = %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d",
-                   i, i + 4, parent->sax[i], parent->masks[i], parent->sax[i + 1], parent->masks[i + 1],
-                   parent->sax[i + 2], parent->masks[i + 2], parent->sax[i + 3], parent->masks[i + 3],
-                   parent->sax[i + 4], parent->masks[i + 4], parent->sax[i + 5], parent->masks[i + 5],
-                   parent->sax[i + 6], parent->masks[i + 6], parent->sax[i + 7], parent->masks[i + 7]);
-    }
-
-//    for (unsigned int i = 0; i < parent->size; ++i) {
-//        for (unsigned int j = 0; j < num_segments; j += 8) {
-//            unsigned int offset = index->sax_length * parent->ids[i] + j;
-//            clog_debug(CLOG(CLOGGER_ID), "index - sax %d-%d (series %d) = %d %d %d %d %d %d %d %d", j, j + 8, i,
-//                       index->saxs[offset], index->saxs[offset + 1], index->saxs[offset + 2], index->saxs[offset + 3],
-//                       index->saxs[offset + 4], index->saxs[offset + 5],
-//                       index->saxs[offset + 6], index->saxs[offset + 7]);
-//        }
+//#ifdef DEBUG
+//    for (unsigned int i = 0; i < num_segments; i += 8) {
+//        clog_debug(CLOG(CLOGGER_ID), "index - sax %d-%d (node) = %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d",
+//                   i, i + 4, parent->sax[i], parent->masks[i], parent->sax[i + 1], parent->masks[i + 1],
+//                   parent->sax[i + 2], parent->masks[i + 2], parent->sax[i + 3], parent->masks[i + 3],
+//                   parent->sax[i + 4], parent->masks[i + 4], parent->sax[i + 5], parent->masks[i + 5],
+//                   parent->sax[i + 6], parent->masks[i + 6], parent->sax[i + 7], parent->masks[i + 7]);
 //    }
-#endif
+//
+////    for (unsigned int i = 0; i < parent->size; ++i) {
+////        for (unsigned int j = 0; j < num_segments; j += 8) {
+////            unsigned int offset = index->sax_length * parent->ids[i] + j;
+////            clog_debug(CLOG(CLOGGER_ID), "index - sax %d-%d (series %d) = %d %d %d %d %d %d %d %d", j, j + 8, i,
+////                       index->saxs[offset], index->saxs[offset + 1], index->saxs[offset + 2], index->saxs[offset + 3],
+////                       index->saxs[offset + 4], index->saxs[offset + 5],
+////                       index->saxs[offset + 6], index->saxs[offset + 7]);
+////        }
+////    }
+//#endif
 
     unsigned int segment_to_split;
 
@@ -276,8 +276,7 @@ void buildIndex(Config const *config, Index *index) {
 
 
 void fetchPermutation(Node *node, int *permutation, int *counter) {
-    if (node->size == 0) {
-        assert(node->left != NULL && node->right != NULL);
+    if (node->left != NULL) {
         fetchPermutation(node->left, permutation, counter);
         fetchPermutation(node->right, permutation, counter);
     } else {
@@ -333,6 +332,80 @@ void permute(Value *values, SAXWord *saxs, int *permutation, int size, unsigned 
 }
 
 
+SAXMask CONST_MASKS[8] = {1u << 7u, 1u << 6u, 1u << 5u, 1u << 4u,
+                          1u << 3u, 1u << 2u, 1u << 1u, 1u};
+
+
+static unsigned int const CONST_BITS[129] = {
+        0, 7, 6, 0, 5, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
+
+void squeezeNode(Node *node, Index *index, bool *segment_flags) {
+    if (node->left != NULL) {
+        squeezeNode(node->left, index, segment_flags);
+        squeezeNode(node->right, index, segment_flags);
+    } else {
+        node->squeezed_masks = malloc(sizeof(SAXMask) * index->sax_length);
+        for (unsigned int i = 0; i < index->sax_length; ++i) {
+            node->squeezed_masks[i] = 1u;
+        }
+
+        memcpy(node->sax, index->saxs + index->sax_length * node->start_id, sizeof(SAXWord) * index->sax_length);
+
+        if (node->size > 1) {
+            int segments_nonsqueezable = 0;
+            for (unsigned int i = 0; i < index->sax_length; ++i) {
+                if (node->masks[i] & node->squeezed_masks[i]) {
+                    segments_nonsqueezable += 1;
+                    segment_flags[i] = false;
+                } else {
+                    segment_flags[i] = true;
+                }
+            }
+
+            for (unsigned int i = index->sax_length * (node->start_id + 1);
+                 (i < index->sax_length * (node->start_id + node->size)) &&
+                 (segments_nonsqueezable < index->sax_length);
+                 i += index->sax_length) {
+                for (unsigned j = 0; j < index->sax_length; ++j) {
+                    if (segment_flags[j]) {
+                        for (unsigned int k = CONST_BITS[node->masks[j]] + 1;
+                             k < CONST_BITS[node->squeezed_masks[j]]; ++k) {
+
+//#ifdef DEBUG
+//                            clog_debug(CLOG(CLOGGER_ID), "index - check 0x%x 0x%x by 0x%x at %d+%d+%d",
+//                                       node->sax[j], index->saxs[i + j], CONST_MASKS[k], i, j, k);
+//#endif
+
+                            if (((unsigned) index->saxs[i + j] ^ (unsigned) node->sax[j]) & CONST_MASKS[k]) {
+                                if ((node->squeezed_masks[j] = CONST_MASKS[k - 1]) & node->masks[j]) {
+                                    segment_flags[j] = false;
+                                    segments_nonsqueezable += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+#ifdef DEBUG
+        for (unsigned int i = 0; i < index->sax_length; ++i) {
+            if (node->squeezed_masks[i] != node->masks[i]) {
+                clog_info(CLOG(CLOGGER_ID), "index - segment %d (node.size %d) squeezed %d --> %d", i, node->size,
+                          node->masks[i], node->squeezed_masks[i]);
+            }
+        }
+#endif
+    }
+}
+
+
 void finalizeIndex(Index *index) {
 #ifdef FINE_TIMING
     clock_t start_clock = clock();
@@ -341,11 +414,11 @@ void finalizeIndex(Index *index) {
     int *permutation = malloc(sizeof(int) * index->database_size);
     int counter = 0;
 
-#ifdef DEBUG
-    for (unsigned int i = 0; i < index->database_size; ++i) {
-        permutation[i] = -1 - (int) index->database_size;
-    }
-#endif
+//#ifdef DEBUG
+//    for (unsigned int i = 0; i < index->database_size; ++i) {
+//        permutation[i] = -1 - (int) index->database_size;
+//    }
+//#endif
 
     for (unsigned int i = 0; i < index->roots_size; ++i) {
         if (index->roots[i]->size == 0 && index->roots[i]->left == NULL) {
@@ -356,23 +429,38 @@ void finalizeIndex(Index *index) {
         }
     }
 
-#ifdef DEBUG
-    for (unsigned int i = 0; i < index->database_size; ++i) {
-        if (permutation[i] == -1 - (int) index->database_size) {
-            clog_error(CLOG(CLOGGER_ID), "index - no destination for %d", i);
-        }
-    }
-#endif
+//#ifdef DEBUG
+//    for (unsigned int i = 0; i < index->database_size; ++i) {
+//        if (permutation[i] == -1 - (int) index->database_size) {
+//            clog_error(CLOG(CLOGGER_ID), "index - no destination for %d", i);
+//        }
+//    }
+//#endif
 
     assert(counter == index->database_size);
 
     permute((Value *) index->values, (SAXWord *) index->saxs, permutation, (int) index->database_size,
             index->series_length, index->sax_length);
 
-    free((Value *) index->summarizations);
+#ifdef FINE_TIMING
+    clog_info(CLOG(CLOGGER_ID), "index - permute for memory locality = %lums",
+              (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+
+    start_clock = clock();
+#endif
+
+    bool *segment_flags = malloc(sizeof(bool) * index->sax_length);
+    for (unsigned int i = 0; i < index->roots_size; ++i) {
+        if (index->roots[i] != NULL) {
+            squeezeNode(index->roots[i], index, segment_flags);
+        }
+    }
+    free(segment_flags);
 
 #ifdef FINE_TIMING
-    clog_info(CLOG(CLOGGER_ID), "index - finalize = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+    clog_info(CLOG(CLOGGER_ID), "index - squeeze nodes = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
 #endif
+
+    free((Value *) index->summarizations);
 }
 

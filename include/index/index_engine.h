@@ -8,6 +8,8 @@
 #include <time.h>
 #include <math.h>
 #include <pthread.h>
+#include <stdlib.h>
+#include <stdbool.h>
 
 #include "globals.h"
 #include "index.h"

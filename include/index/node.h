@@ -13,11 +13,11 @@
 #include "globals.h"
 #include "clog.h"
 
-
 typedef struct Node {
     pthread_mutex_t *lock;
     SAXWord *sax;
     SAXMask *masks;
+    SAXMask *squeezed_masks;
 
     unsigned int *ids;
     unsigned int start_id;

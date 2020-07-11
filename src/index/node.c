@@ -10,6 +10,8 @@ Node *initializeNode(SAXWord *sax, SAXMask *masks) {
 
     node->sax = sax;
     node->masks = masks;
+    node->squeezed_masks = NULL;
+
     node->ids = NULL;
     node->start_id = 0;
 
@@ -39,7 +41,7 @@ void inspectNode(Node *node, unsigned int *num_series, unsigned int *num_leaves,
 
             *num_leaves += 1;
             *num_series += node->size;
-        } else if (node->size == 0 && node->left != NULL) {
+        } else if (node->left != NULL) {
             if (num_roots != NULL) {
                 *num_roots += 1;
             }
@@ -60,6 +62,10 @@ void freeNode(Node *node, bool free_mask, bool free_sax) {
 
         if (free_mask) {
             free(node->masks);
+        }
+
+        if (node->squeezed_masks != NULL) {
+            free(node->squeezed_masks);
         }
 
         if (free_sax) {
