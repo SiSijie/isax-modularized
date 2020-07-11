@@ -14,7 +14,7 @@
 //#define DEBUG
 
 
-#define FINE_TIMING
+//#define FINE_TIMING
 #define TIMING
 
 #ifdef FINE_TIMING
@@ -47,7 +47,7 @@ inline void getTimeDiff(TimeDiff * t_diff, struct timespec t_start, struct times
 #endif
 
 
-#define PROFILING
+//#define PROFILING
 
 #ifdef PROFILING
 unsigned int visited_leaves_counter_profiling;

@@ -58,7 +58,7 @@ Value *piecewiseAggregate(Value const *values, unsigned int size, unsigned int s
     Value *paas = malloc(sizeof(Value) * summarization_length * size);
 
     unsigned int shared_processed_counter = 0;
-    unsigned int block_size = size / (num_threads * 2);
+    unsigned int block_size = size / (num_threads << 2u);
 
     pthread_t threads[num_threads];
     PAACache paaCaches[num_threads];
