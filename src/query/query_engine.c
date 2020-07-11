@@ -174,7 +174,10 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
     QueryCache queryCache[config->max_threads];
 
 #ifdef FINE_TIMING
-    clock_t start_clock = clock();
+    struct timespec start_timestamp, stop_timestamp;
+    TimeDiff time_diff;
+
+    clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
     Node **leaves = malloc(sizeof(Node *) * index->num_leaves);
@@ -184,7 +187,10 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
     }
 
 #ifdef FINE_TIMING
-    clog_info(CLOG(CLOGGER_ID), "query - fetch leaves = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+    clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+    getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
+
+    clog_info(CLOG(CLOGGER_ID), "query - fetch leaves = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
 #endif
 
     assert(num_leaves == index->num_leaves);
@@ -205,7 +211,7 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
 #endif
 
 #ifdef FINE_TIMING
-        start_clock = clock();
+        clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
         unsigned int rootID = rootSAX2ID(query_sax, config->sax_length, config->sax_cardinality);
@@ -233,15 +239,17 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
         }
 
 #ifdef FINE_TIMING
-        clog_info(CLOG(CLOGGER_ID), "query %d - approximate search = %lums", i,
-                  (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+        clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+        getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
+
+        clog_info(CLOG(CLOGGER_ID), "query %d - approximate search = %ld.%lds", i, time_diff.tv_sec, time_diff.tv_nsec);
 #endif
 
         if (config->exact_search && !(answer->size == answer->k && getBSF(answer) == 0)) {
             logAnswer(querySet->query_size + i, answer);
 
 #ifdef FINE_TIMING
-            start_clock = clock();
+            clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
             for (unsigned int j = 0; j < num_leaves; ++j) {
@@ -259,8 +267,11 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
             }
 
 #ifdef FINE_TIMING
-            clog_info(CLOG(CLOGGER_ID), "query %d - calculate leaves distances = %lums", i,
-                      (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+            clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+            getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
+
+            clog_info(CLOG(CLOGGER_ID), "query %d - calculate leaves distances = %ld.%lds", i, time_diff.tv_sec,
+                      time_diff.tv_nsec);
 #endif
 
 //#ifdef DEBUG
@@ -305,7 +316,7 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
 //#endif
 
 #ifdef FINE_TIMING
-            start_clock = clock();
+            clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
             pthread_t threads[config->max_threads];
@@ -334,8 +345,10 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
         }
 
 #ifdef FINE_TIMING
-        clog_info(CLOG(CLOGGER_ID), "query %d - exact search = %lums", i,
-                  (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+        clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+        getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
+
+        clog_info(CLOG(CLOGGER_ID), "query %d - exact search = %ld.%lds", i, time_diff.tv_sec, time_diff.tv_nsec);
 #endif
 
 #ifdef PROFILING

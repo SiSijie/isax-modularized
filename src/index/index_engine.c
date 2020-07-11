@@ -251,7 +251,10 @@ void buildIndex(Config const *config, Index *index) {
     IndexCache indexCache[num_threads];
 
 #ifdef FINE_TIMING
-    clock_t start_clock = clock();
+    struct timespec start_timestamp, stop_timestamp;
+    TimeDiff time_diff;
+
+    clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
     for (unsigned int shared_start_id = 0, i = 0; i < num_threads; ++i) {
@@ -270,7 +273,10 @@ void buildIndex(Config const *config, Index *index) {
     }
 
 #ifdef FINE_TIMING
-    clog_info(CLOG(CLOGGER_ID), "index - build = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+    clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+    getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
+
+    clog_info(CLOG(CLOGGER_ID), "index - build = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
 #endif
 }
 
@@ -408,7 +414,10 @@ void squeezeNode(Node *node, Index *index, bool *segment_flags) {
 
 void finalizeIndex(Index *index) {
 #ifdef FINE_TIMING
-    clock_t start_clock = clock();
+    struct timespec start_timestamp, stop_timestamp;
+    TimeDiff time_diff;
+
+    clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
     int *permutation = malloc(sizeof(int) * index->database_size);
@@ -443,10 +452,12 @@ void finalizeIndex(Index *index) {
             index->series_length, index->sax_length);
 
 #ifdef FINE_TIMING
-    clog_info(CLOG(CLOGGER_ID), "index - permute for memory locality = %lums",
-              (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+    clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+    getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
 
-    start_clock = clock();
+    clog_info(CLOG(CLOGGER_ID), "index - permute for memory locality = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
+
+    clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
     bool *segment_flags = malloc(sizeof(bool) * index->sax_length);
@@ -458,7 +469,10 @@ void finalizeIndex(Index *index) {
     free(segment_flags);
 
 #ifdef FINE_TIMING
-    clog_info(CLOG(CLOGGER_ID), "index - squeeze nodes = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+    clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+    getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
+
+    clog_info(CLOG(CLOGGER_ID), "index - squeeze nodes = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
 #endif
 
     free((Value *) index->summarizations);

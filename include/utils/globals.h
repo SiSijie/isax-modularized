@@ -5,6 +5,7 @@
 #ifndef ISAX_GLOBALS_H
 #define ISAX_GLOBALS_H
 
+#include <time.h>
 #include <float.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -22,8 +23,31 @@
 #endif
 #endif
 
+#ifdef TIMING
 
-//#define PROFILING
+#define CLK_ID CLOCK_MONOTONIC
+#define NSEC_INSEC 1000000000L
+
+int clock_code;
+
+typedef struct TimeDiff {
+    long tv_nsec;
+    long tv_sec;
+} TimeDiff;
+
+inline void getTimeDiff(TimeDiff * t_diff, struct timespec t_start, struct timespec t_stop) {
+    t_diff->tv_nsec = t_stop.tv_nsec - t_start.tv_nsec;
+    t_diff->tv_sec = t_stop.tv_sec - t_start.tv_sec;
+    if (t_diff->tv_nsec < 0) {
+        t_diff->tv_sec -= 1;
+        t_diff->tv_nsec += NSEC_INSEC;
+    }
+}
+
+#endif
+
+
+#define PROFILING
 
 #ifdef PROFILING
 unsigned int visited_leaves_counter_profiling;

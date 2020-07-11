@@ -46,7 +46,10 @@ Index *initializeIndex(Config const *config) {
     index->num_leaves = 0;
 
 #ifdef FINE_TIMING
-    clock_t start_clock = clock();
+    struct timespec start_timestamp, stop_timestamp;
+    TimeDiff time_diff;
+
+    clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
     // initialize first-layer (root) nodes of (1 bit * sax_length) SAX
@@ -62,9 +65,12 @@ Index *initializeIndex(Config const *config) {
     }
 
 #ifdef FINE_TIMING
-    clog_info(CLOG(CLOGGER_ID), "index - initialize roots = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+    clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+    getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
 
-    start_clock = clock();
+    clog_info(CLOG(CLOGGER_ID), "index - initialize roots = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
+
+    clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
     Value *values = malloc(sizeof(Value) * config->series_length * config->database_size);
@@ -76,9 +82,12 @@ Index *initializeIndex(Config const *config) {
     index->values = (Value const *) values;
 
 #ifdef FINE_TIMING
-    clog_info(CLOG(CLOGGER_ID), "index - load series = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+    clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+    getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
 
-    start_clock = clock();
+    clog_info(CLOG(CLOGGER_ID), "index - load series = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
+
+    clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
     if (config->database_summarization_filepath != NULL) {
@@ -101,10 +110,13 @@ Index *initializeIndex(Config const *config) {
     if (config->database_summarization_filepath == NULL) {
         method4summarizations = "calculate";
     }
-    clog_info(CLOG(CLOGGER_ID), "index - %s summarizations = %lums", method4summarizations,
-              (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+    clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+    getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
 
-    start_clock = clock();
+    clog_info(CLOG(CLOGGER_ID), "index - %s summarizations = %ld.%lds", method4summarizations, time_diff.tv_sec,
+              time_diff.tv_nsec);
+
+    clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
     if (config->use_adhoc_breakpoints) {
@@ -119,17 +131,23 @@ Index *initializeIndex(Config const *config) {
     if (config->use_adhoc_breakpoints) {
         method4breakpoints = "adhoc";
     }
-    clog_info(CLOG(CLOGGER_ID), "index - load %s breakpoints = %lums", method4breakpoints,
-              (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+    clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+    getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
 
-    start_clock = clock();
+    clog_info(CLOG(CLOGGER_ID), "index - load %s breakpoints = %ld.%lds", method4breakpoints, time_diff.tv_sec,
+              time_diff.tv_nsec);
+
+    clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
     index->saxs = (SAXWord const *) summarizations2SAXs(index->summarizations, index->breakpoints, index->database_size,
                                                         index->sax_length, index->sax_cardinality, config->max_threads);
 
 #ifdef FINE_TIMING
-    clog_info(CLOG(CLOGGER_ID), "index - calculate SAXs = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+    clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+    getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
+
+    clog_info(CLOG(CLOGGER_ID), "index - calculate SAXs = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
 #endif
 
     return index;

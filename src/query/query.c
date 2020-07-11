@@ -11,7 +11,10 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
     queries->query_size = config->query_size;
 
 #ifdef FINE_TIMING
-    clock_t start_clock = clock();
+    struct timespec start_timestamp, stop_timestamp;
+    TimeDiff time_diff;
+
+    clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
     Value *values = malloc(sizeof(Value) * config->series_length * config->query_size);
@@ -23,15 +26,19 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
     queries->values = (Value const *) values;
 
 #ifdef FINE_TIMING
-    clog_info(CLOG(CLOGGER_ID), "query - load series = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+    clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+    getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
 
-    start_clock = clock();
+    clog_info(CLOG(CLOGGER_ID), "query - load series = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
+
+    clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
     if (config->query_summarization_filepath != NULL) {
         Value *summarizations = malloc(sizeof(Value) * config->sax_length * config->query_size);
         FILE *file_summarizations = fopen(config->query_summarization_filepath, "rb");
-        read_values = fread(summarizations, sizeof(Value), config->sax_length * config->query_size, file_summarizations);
+        read_values = fread(summarizations, sizeof(Value), config->sax_length * config->query_size,
+                            file_summarizations);
         fclose(file_summarizations);
         assert(read_values == config->sax_length * config->query_size);
 
@@ -47,10 +54,13 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
     if (config->database_summarization_filepath == NULL) {
         method4summarizations = "calculate";
     }
-    clog_info(CLOG(CLOGGER_ID), "query - %s summarizations = %lums", method4summarizations,
-              (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+    clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+    getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
 
-    start_clock = clock();
+    clog_info(CLOG(CLOGGER_ID), "query - %s summarizations = %ld.%lds", method4summarizations, time_diff.tv_sec,
+              time_diff.tv_nsec);
+
+    clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
     queries->saxs = (SAXWord const *) summarizations2SAXs(queries->summarizations, index->breakpoints,
@@ -58,7 +68,10 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
                                                           config->sax_cardinality, config->max_threads);
 
 #ifdef FINE_TIMING
-    clog_info(CLOG(CLOGGER_ID), "query - calculate SAXs = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+    clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+    getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
+
+    clog_info(CLOG(CLOGGER_ID), "query - calculate SAXs = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
 #endif
 
     return queries;

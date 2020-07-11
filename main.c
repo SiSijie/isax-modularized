@@ -31,7 +31,10 @@ int main(int argc, char **argv) {
     logConfig(config);
 
 #ifdef TIMING
-    clock_t start_clock = clock();
+    struct timespec start_timestamp, stop_timestamp;
+    TimeDiff time_diff;
+
+    clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
     Index *index = initializeIndex(config);
@@ -39,7 +42,10 @@ int main(int argc, char **argv) {
     finalizeIndex(index);
 
 #ifdef TIMING
-    clog_info(CLOG(CLOGGER_ID), "index - overall = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+    clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+    getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
+
+    clog_info(CLOG(CLOGGER_ID), "index - overall = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
 #endif
 
     logIndex(index);
@@ -50,14 +56,17 @@ int main(int argc, char **argv) {
 #endif
 
 #ifdef TIMING
-    start_clock = clock();
+    clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
     QuerySet *queries = initializeQuery(config, index);
     conductQueries(queries, index, config);
 
 #ifdef TIMING
-    clog_info(CLOG(CLOGGER_ID), "query - overall = %lums", (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+    clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+    getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
+
+    clog_info(CLOG(CLOGGER_ID), "query - overall = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
 #endif
 
 #ifdef PROFILING
