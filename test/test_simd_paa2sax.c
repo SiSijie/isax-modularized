@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
 
     Value scale_factor = (Value) config->series_length / (Value) config->sax_length;
     Value min_paa2sax = VALUE_MAX, local_paa2sax;
-
+    Value *m256_fetched_cache = malloc(sizeof(Value) * 8);
     start_clock = clock();
 
     for (unsigned int i = 1; i < index->database_size; ++i) {
@@ -58,7 +58,8 @@ int main(int argc, char **argv) {
 
     for (unsigned int i = 1; i < index->database_size; ++i) {
         local_paa2sax = l2SquareValue2SAX8SIMD(index->sax_length, index->summarizations,
-                                               index->saxs + index->sax_length * i, index->breakpoints, scale_factor);
+                                               index->saxs + index->sax_length * i, index->breakpoints, scale_factor,
+                                               m256_fetched_cache);
 
         if (VALUE_L(local_paa2sax, min_paa2sax)) {
             min_paa2sax = local_paa2sax;
@@ -94,7 +95,7 @@ int main(int argc, char **argv) {
     for (unsigned int i = 1; i < index->database_size; ++i) {
         local_paa2sax = l2SquareValue2SAXByMaskSIMD(index->sax_length, index->summarizations,
                                                     index->saxs + index->sax_length * i, masks8, index->breakpoints,
-                                                    scale_factor);
+                                                    scale_factor, m256_fetched_cache);
 
         if (VALUE_L(local_paa2sax, min_paa2sax)) {
             min_paa2sax = local_paa2sax;
@@ -103,6 +104,8 @@ int main(int argc, char **argv) {
 
     clog_info(CLOG(CLOGGER_ID), "test - l2SquareValue2SAXByMaskSIMD = %f by %lums", min_paa2sax,
               (clock() - start_clock) * 1000 / CLOCKS_PER_SEC);
+
+    free(m256_fetched_cache);
 
     freeIndex(index);
     free((Config *) config);
