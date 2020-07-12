@@ -11,7 +11,7 @@
 #include "globals.h"
 
 
-Value *piecewiseAggregate(Value const *values, unsigned int size, unsigned int series_length, unsigned int summarization_length,
+Value *piecewiseAggregate(Value const *values, ID size, unsigned int series_length, unsigned int summarization_length,
                           unsigned int num_threads);
 
 #endif //ISAX_PAA_H

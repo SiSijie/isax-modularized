@@ -8,12 +8,12 @@
 typedef struct PAACache {
     Value const *values;
     Value *paas;
-    unsigned int size;
 
+    size_t size;
     unsigned int series_length;
-    unsigned int summarization_length;
+    unsigned int paa_length;
 
-    unsigned int *shared_processed_counter;
+    ID *shared_processed_counter;
     unsigned int block_size;
 } PAACache;
 
@@ -21,28 +21,41 @@ typedef struct PAACache {
 void *piecewiseAggregateThread(void *cache) {
     PAACache *paaCache = (PAACache *) cache;
 
-    unsigned int segment_length = paaCache->series_length / paaCache->summarization_length;
-    float float_segment_length = (float) segment_length;
+    Value const *values = paaCache->values;
+    ID size = paaCache->size;
+    unsigned int series_length = paaCache->series_length;
 
-    unsigned int start_position;
-    while ((start_position = __sync_fetch_and_add(paaCache->shared_processed_counter, paaCache->block_size)) <
-           paaCache->size) {
-        unsigned int stop_position = start_position + paaCache->block_size;
-        if (stop_position > paaCache->size) {
-            stop_position = paaCache->size;
+    Value *paas = paaCache->paas;
+    unsigned int paa_length = paaCache->paa_length;
+    unsigned int num_values_in_segment = paaCache->series_length / paaCache->paa_length;
+    float float_num_values_in_segment = (float) num_values_in_segment;
+
+    ID *shared_processed_counter = paaCache->shared_processed_counter;
+    unsigned int block_size = paaCache->block_size;
+
+    ID start_id, stop_id;
+    unsigned int value_counter;
+    float segment_sum;
+    Value const *pt_value;
+    Value *pt_paa;
+
+    while ((start_id = __sync_fetch_and_add(shared_processed_counter, block_size)) < size) {
+        stop_id = start_id + block_size;
+        if (stop_id > size) {
+            stop_id = size;
         }
 
-        float segment_sum = 0;
-        for (unsigned int i = paaCache->series_length * start_position,
-                     j = start_position * paaCache->summarization_length, k = 0;
-             i < paaCache->series_length * stop_position; ++i) {
-            segment_sum += paaCache->values[i];
+        for (pt_value = values + series_length * start_id, pt_paa = paas + paa_length * start_id,
+             value_counter = 0, segment_sum = 0;
+             pt_value < values + series_length * stop_id; ++pt_value) {
+            segment_sum += *pt_value;
 
-            if ((k += 1) == segment_length) {
-                paaCache->paas[j] = segment_sum / float_segment_length;
+            value_counter += 1;
+            if (value_counter == num_values_in_segment) {
+                *pt_paa = segment_sum / float_num_values_in_segment;
 
-                j += 1;
-                k = 0;
+                pt_paa += 1;
+                value_counter = 0;
                 segment_sum = 0;
             }
         }
@@ -52,13 +65,12 @@ void *piecewiseAggregateThread(void *cache) {
 }
 
 
-Value *piecewiseAggregate(Value const *values, unsigned int size, unsigned int series_length,
-                          unsigned int summarization_length,
+Value *piecewiseAggregate(Value const *values, ID size, unsigned int series_length, unsigned int summarization_length,
                           unsigned int num_threads) {
     Value *paas = malloc(sizeof(Value) * summarization_length * size);
 
-    unsigned int shared_processed_counter = 0;
-    unsigned int block_size = size / (num_threads << 2u);
+    ID shared_processed_counter = 0;
+    unsigned int block_size = 1 + size / (num_threads << 2u);
 
     pthread_t threads[num_threads];
     PAACache paaCaches[num_threads];
@@ -66,9 +78,11 @@ Value *piecewiseAggregate(Value const *values, unsigned int size, unsigned int s
     for (unsigned int i = 0; i < num_threads; ++i) {
         paaCaches[i].values = values;
         paaCaches[i].paas = paas;
+
         paaCaches[i].size = size;
         paaCaches[i].series_length = series_length;
-        paaCaches[i].summarization_length = summarization_length;
+        paaCaches[i].paa_length = summarization_length;
+
         paaCaches[i].shared_processed_counter = &shared_processed_counter;
         paaCaches[i].block_size = block_size;
 

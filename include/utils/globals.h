@@ -11,10 +11,10 @@
 #include <pthread.h>
 
 
-#define DEBUG
+//#define DEBUG
 
 
-#define FINE_TIMING
+//#define FINE_TIMING
 #define TIMING
 
 #ifdef FINE_TIMING
