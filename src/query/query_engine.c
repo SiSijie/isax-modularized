@@ -382,6 +382,14 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
 #endif
 
         if (config->exact_search && !(getBSF(answer) == 0 && answer->size == answer->k)) {
+#ifdef PROFILING
+            if (node != NULL) {
+                clog_info(CLOG(CLOGGER_ID), "query %d - %d calculated / %d visited / %d node size",
+                          i + querySet->query_size, calculated_series_counter_profiling,
+                          visited_series_counter_profiling, node->size);
+            }
+#endif
+
             logAnswer(querySet->query_size + i, answer);
 
 #ifdef FINE_TIMING
@@ -418,7 +426,9 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
 #ifdef FINE_TIMING
                 clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
+
                 qSortFirstHalfBy(leaves, leaf_distances, 0, (int) (num_leaves - 1), local_bsf);
+
 #ifdef FINE_TIMING
                 clog_info(CLOG(CLOGGER_ID), "query %d - sort leaves distances = %ld.%lds", i, time_diff.tv_sec,
                           time_diff.tv_nsec);
