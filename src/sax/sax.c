@@ -142,51 +142,59 @@ Value l2SquareValue2SAXByMaskSIMD(unsigned int sax_length, Value const *summariz
     __m256i m256i_sax_packed = _mm256_cvtepu8_epi16(_mm_lddqu_si128((__m128i const *) sax));
 
     __m256 m256_summarizations = _mm256_loadu_ps(summarizations);
+    __m256i m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 0));
 
     __m256i m256i_mask_indices = _mm256_loadu_si256(m256i_masks);
-    __m256i m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 0));
     __m256i m256i_sax_shifts = _mm256_i32gather_epi32(SHIFTS_BY_MASK, m256i_mask_indices, 4);
     __m256i m256i_cardinality_offsets = _mm256_i32gather_epi32(OFFSETS_BY_MASK, m256i_mask_indices, 4);
-    __m256i m256i_breakpoint_indices = _mm256_add_epi32(_mm256_add_epi32(_mm256_loadu_si256(M256I_OFFSETS_BY_SEGMENTS),
-                                                                         m256i_cardinality_offsets),
-                                                        _mm256_srlv_epi32(m256i_sax, m256i_sax_shifts));
 
-    __m256 m256_floor_breakpoints = _mm256_i32gather_ps(breakpoints, m256i_breakpoint_indices, 4);
-    __m256 m256_ceiling_breakpoints = _mm256_i32gather_ps(breakpoints,
-                                                          _mm256_add_epi32(m256i_breakpoint_indices, M256I_1), 4);
+    __m256i m256i_sax_offsets = _mm256_add_epi32(M256I_BREAKPOINTS_OFFSETS_0_7, m256i_cardinality_offsets);
+    __m256i m256i_sax_indices = _mm256_srlv_epi32(m256i_sax, m256i_sax_shifts);
 
-    __m256 m256_floor_distances = _mm256_and_ps(_mm256_sub_ps(m256_floor_breakpoints, m256_summarizations),
-                                                _mm256_cmp_ps(m256_summarizations, m256_floor_breakpoints, _CMP_LT_OS));
-    __m256 m256_ceiling_distances = _mm256_and_ps(_mm256_sub_ps(m256_summarizations, m256_ceiling_breakpoints),
-                                                  _mm256_cmp_ps(m256_summarizations, m256_ceiling_breakpoints,
-                                                                _CMP_GT_OS));
+    __m256i m256i_floor_indices = _mm256_add_epi32(m256i_sax_offsets, m256i_sax_indices);
+    __m256 m256_floor_breakpoints = _mm256_i32gather_ps(breakpoints, m256i_floor_indices, 4);
 
-    __m256 m256_distances = _mm256_add_ps(m256_floor_distances, m256_ceiling_distances);
-    __m256 m256_l2square = _mm256_mul_ps(m256_distances, m256_distances);
+    __m256i m256i_ceiling_indices = _mm256_add_epi32(m256i_floor_indices, M256I_1);
+    __m256 m256_ceiling_breakpoints = _mm256_i32gather_ps(breakpoints, m256i_ceiling_indices, 4);
+
+    __m256 m256_floor_diff = _mm256_sub_ps(m256_floor_breakpoints, m256_summarizations);
+    __m256 m256_floor_indicator = _mm256_cmp_ps(m256_summarizations, m256_floor_breakpoints, _CMP_LT_OS);
+    __m256 m256_floor_l1 = _mm256_and_ps(m256_floor_diff, m256_floor_indicator);
+
+    __m256 m256_ceiling_diff = _mm256_sub_ps(m256_summarizations, m256_ceiling_breakpoints);
+    __m256 m256_ceiling_indicator = _mm256_cmp_ps(m256_summarizations, m256_ceiling_breakpoints, _CMP_GT_OS);
+    __m256 m256_ceiling_l1 = _mm256_and_ps(m256_ceiling_diff, m256_ceiling_indicator);
+
+    __m256 m256_l1 = _mm256_add_ps(m256_floor_l1, m256_ceiling_l1);
+    __m256 m256_l2square = _mm256_mul_ps(m256_l1, m256_l1);
 
     if (sax_length == 16) {
         m256_summarizations = _mm256_loadu_ps(summarizations + 8);
+        m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 1));
 
         m256i_mask_indices = _mm256_loadu_si256(m256i_masks + 1);
-        m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 1));
         m256i_sax_shifts = _mm256_i32gather_epi32(SHIFTS_BY_MASK, m256i_mask_indices, 4);
         m256i_cardinality_offsets = _mm256_i32gather_epi32(OFFSETS_BY_MASK, m256i_mask_indices, 4);
-        m256i_breakpoint_indices = _mm256_add_epi32(_mm256_add_epi32(_mm256_loadu_si256(M256I_OFFSETS_BY_SEGMENTS),
-                                                                     m256i_cardinality_offsets),
-                                                    _mm256_srlv_epi32(m256i_sax, m256i_sax_shifts));
 
-        m256_floor_breakpoints = _mm256_i32gather_ps(breakpoints, m256i_breakpoint_indices, 4);
-        m256_ceiling_breakpoints = _mm256_i32gather_ps(breakpoints,
-                                                       _mm256_add_epi32(m256i_breakpoint_indices, M256I_1), 4);
+        m256i_sax_offsets = _mm256_add_epi32(M256I_BREAKPOINTS_OFFSETS_8_15, m256i_cardinality_offsets);
+        m256i_sax_indices = _mm256_srlv_epi32(m256i_sax, m256i_sax_shifts);
 
-        m256_floor_distances = _mm256_and_ps(_mm256_sub_ps(m256_floor_breakpoints, m256_summarizations),
-                                             _mm256_cmp_ps(m256_summarizations, m256_floor_breakpoints, _CMP_LT_OS));
-        m256_ceiling_distances = _mm256_and_ps(_mm256_sub_ps(m256_summarizations, m256_ceiling_breakpoints),
-                                               _mm256_cmp_ps(m256_summarizations, m256_ceiling_breakpoints,
-                                                             _CMP_GT_OS));
+        m256i_floor_indices = _mm256_add_epi32(m256i_sax_offsets, m256i_sax_indices);
+        m256_floor_breakpoints = _mm256_i32gather_ps(breakpoints, m256i_floor_indices, 4);
 
-        m256_distances = _mm256_add_ps(m256_floor_distances, m256_ceiling_distances);
-        m256_l2square = _mm256_fmadd_ps(m256_distances, m256_distances, m256_l2square);
+        m256i_ceiling_indices = _mm256_add_epi32(m256i_floor_indices, M256I_1);
+        m256_ceiling_breakpoints = _mm256_i32gather_ps(breakpoints, m256i_ceiling_indices, 4);
+
+        m256_floor_diff = _mm256_sub_ps(m256_floor_breakpoints, m256_summarizations);
+        m256_floor_indicator = _mm256_cmp_ps(m256_summarizations, m256_floor_breakpoints, _CMP_LT_OS);
+        m256_floor_l1 = _mm256_and_ps(m256_floor_diff, m256_floor_indicator);
+
+        m256_ceiling_diff = _mm256_sub_ps(m256_summarizations, m256_ceiling_breakpoints);
+        m256_ceiling_indicator = _mm256_cmp_ps(m256_summarizations, m256_ceiling_breakpoints, _CMP_GT_OS);
+        m256_ceiling_l1 = _mm256_and_ps(m256_ceiling_diff, m256_ceiling_indicator);
+
+        m256_l1 = _mm256_add_ps(m256_floor_l1, m256_ceiling_l1);
+        m256_l2square = _mm256_fmadd_ps(m256_l1, m256_l1, m256_l2square);
     }
 
     m256_l2square = _mm256_hadd_ps(m256_l2square, m256_l2square);
@@ -211,14 +219,14 @@ Value l2SquareValue2SAX8SIMD(unsigned int sax_length, Value const *summarization
 
     __m256 m256_floor_diff = _mm256_sub_ps(m256_floor_breakpoints, m256_summarizations);
     __m256 m256_floor_indicator = _mm256_cmp_ps(m256_summarizations, m256_floor_breakpoints, _CMP_LT_OS);
-    __m256 m256_distances2floor = _mm256_and_ps(m256_floor_diff, m256_floor_indicator);
+    __m256 m256_floor_l1 = _mm256_and_ps(m256_floor_diff, m256_floor_indicator);
 
     __m256 m256_ceiling_diff = _mm256_sub_ps(m256_summarizations, m256_ceiling_breakpoints);
     __m256 m256_ceiling_indicator = _mm256_cmp_ps(m256_summarizations, m256_ceiling_breakpoints, _CMP_GT_OS);
-    __m256 m256_distances2ceiling = _mm256_and_ps(m256_ceiling_diff, m256_ceiling_indicator);
+    __m256 m256_ceiling_l1 = _mm256_and_ps(m256_ceiling_diff, m256_ceiling_indicator);
 
-    __m256 m256_distances = _mm256_add_ps(m256_distances2floor, m256_distances2ceiling);
-    __m256 m256_l2square = _mm256_mul_ps(m256_distances, m256_distances);
+    __m256 m256_l1 = _mm256_add_ps(m256_floor_l1, m256_ceiling_l1);
+    __m256 m256_l2square = _mm256_mul_ps(m256_l1, m256_l1);
 
     // sax_length == 8 or 16, ONLY
     if (sax_length == 16) {
@@ -233,14 +241,14 @@ Value l2SquareValue2SAX8SIMD(unsigned int sax_length, Value const *summarization
 
         m256_floor_diff = _mm256_sub_ps(m256_floor_breakpoints, m256_summarizations);
         m256_floor_indicator = _mm256_cmp_ps(m256_summarizations, m256_floor_breakpoints, _CMP_LT_OS);
-        m256_distances2floor = _mm256_and_ps(m256_floor_diff, m256_floor_indicator);
+        m256_floor_l1 = _mm256_and_ps(m256_floor_diff, m256_floor_indicator);
 
         m256_ceiling_diff = _mm256_sub_ps(m256_summarizations, m256_ceiling_breakpoints);
         m256_ceiling_indicator = _mm256_cmp_ps(m256_summarizations, m256_ceiling_breakpoints, _CMP_GT_OS);
-        m256_distances2ceiling = _mm256_and_ps(m256_ceiling_diff, m256_ceiling_indicator);
+        m256_ceiling_l1 = _mm256_and_ps(m256_ceiling_diff, m256_ceiling_indicator);
 
-        m256_distances = _mm256_add_ps(m256_distances2floor, m256_distances2ceiling);
-        m256_l2square = _mm256_fmadd_ps(m256_distances, m256_distances, m256_l2square);
+        m256_l1 = _mm256_add_ps(m256_floor_l1, m256_ceiling_l1);
+        m256_l2square = _mm256_fmadd_ps(m256_l1, m256_l1, m256_l2square);
     }
 
     m256_l2square = _mm256_hadd_ps(m256_l2square, m256_l2square);
