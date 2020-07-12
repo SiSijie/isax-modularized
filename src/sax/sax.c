@@ -10,10 +10,10 @@ typedef struct SAXCache {
     Value const *summarizations;
     Value const *breakpoints;
 
-    unsigned int size;
+    ID size;
     unsigned int sax_length;
 
-    unsigned int *shared_processed_counter;
+    ID *shared_processed_counter;
     unsigned int block_size;
 } SAXCache;
 
@@ -35,21 +35,28 @@ unsigned int bSearchFloor(Value value, Value const *breakpoints, unsigned int fi
 
 void *summarizations2SAXs8Thread(void *cache) {
     SAXCache *saxCache = (SAXCache *) cache;
+    ID *shared_processed_counter = saxCache->shared_processed_counter;
+    unsigned int block_size = saxCache->block_size;
+    ID size = saxCache->size;
+    unsigned int sax_length = saxCache->sax_length;
+    Value const *summarizations = saxCache->summarizations;
+    Value const *breakpoints = saxCache->breakpoints;
+    SAXWord *saxs = saxCache->saxs;
 
-    unsigned int start_position, stop_position, i, j;
-    while ((start_position = __sync_fetch_and_add(saxCache->shared_processed_counter, saxCache->block_size)) <
-           saxCache->size) {
-        stop_position = start_position + saxCache->block_size;
-        if (stop_position > saxCache->size) {
-            stop_position = saxCache->size;
+    ID start_id, stop_id, current_id, current_segment;
+
+    while ((start_id = __sync_fetch_and_add(shared_processed_counter, block_size)) < size) {
+        stop_id = start_id + block_size;
+        if (stop_id > size) {
+            stop_id = size;
         }
 
-        for (i = start_position * saxCache->sax_length;
-             i < stop_position * saxCache->sax_length; i += saxCache->sax_length) {
-            for (j = 0; j < saxCache->sax_length; ++j) {
-                saxCache->saxs[i + j] = bSearchFloor(saxCache->summarizations[i + j],
-                                                     saxCache->breakpoints + OFFSETS_BY_SEGMENTS[j] +
-                                                     OFFSETS_BY_CARDINALITY[7], 0, 256);
+        for (current_id = sax_length * start_id; current_id < sax_length * stop_id; current_id += sax_length) {
+            for (current_segment = 0; current_segment < sax_length; ++current_segment) {
+                saxs[current_id + current_segment] = bSearchFloor(summarizations[current_id + current_segment],
+                                                                  breakpoints + OFFSETS_BY_SEGMENTS[current_segment] +
+                                                                  OFFSETS_BY_CARDINALITY[7],
+                                                                  0, 256);
             }
         }
     }
@@ -59,22 +66,25 @@ void *summarizations2SAXs8Thread(void *cache) {
 
 
 SAXWord *
-summarizations2SAXs(Value const *summarizations, Value const *breakpoints, unsigned int size, unsigned int sax_length,
+summarizations2SAXs(Value const *summarizations, Value const *breakpoints, ID size, unsigned int sax_length,
                     unsigned int sax_cardinality, unsigned int num_threads) {
     SAXWord *saxs = malloc(sizeof(SAXWord) * sax_length * size);
 
     pthread_t threads[num_threads];
     SAXCache saxCache[num_threads];
 
-    for (unsigned int shared_processed_counter = 0, block_size = 1 + size / (num_threads * 2), i = 0;
-         i < num_threads; ++i) {
+    ID shared_processed_counter = 0;
+    unsigned int block_size = 1 + size / (num_threads << 1u);
+    for (unsigned int i = 0; i < num_threads; ++i) {
         saxCache[i].saxs = saxs;
         saxCache[i].summarizations = summarizations;
         saxCache[i].breakpoints = breakpoints;
-        saxCache[i].shared_processed_counter = &shared_processed_counter;
-        saxCache[i].block_size = block_size;
+
         saxCache[i].size = size;
         saxCache[i].sax_length = sax_length;
+
+        saxCache[i].shared_processed_counter = &shared_processed_counter;
+        saxCache[i].block_size = block_size;
 
         pthread_create(&threads[i], NULL, summarizations2SAXs8Thread, (void *) &saxCache[i]);
     }
@@ -188,21 +198,24 @@ Value l2SquareValue2SAXByMaskSIMD(unsigned int sax_length, Value const *summariz
 
 Value l2SquareValue2SAX8SIMD(unsigned int sax_length, Value const *summarizations, SAXWord const *sax,
                              Value const *breakpoints, Value scale_factor, Value *cache) {
-    __m256 m256_summarizations = _mm256_loadu_ps(summarizations);
     __m256i m256i_sax_packed = _mm256_cvtepu8_epi16(_mm_lddqu_si128((__m128i const *) sax));
 
+    __m256 m256_summarizations = _mm256_loadu_ps(summarizations);
     __m256i m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 0));
-    __m256i m256i_breakpoint_indices = _mm256_add_epi32(m256i_sax, M256I_BREAKPOINTS8_OFFSETS_0_7);
 
-    __m256 m256_floor_breakpoints = _mm256_i32gather_ps(breakpoints, m256i_breakpoint_indices, 4);
-    __m256 m256_ceiling_breakpoints = _mm256_i32gather_ps(breakpoints,
-                                                          _mm256_add_epi32(m256i_breakpoint_indices, M256I_1), 4);
+    __m256i m256i_floor_indices = _mm256_add_epi32(m256i_sax, M256I_BREAKPOINTS8_OFFSETS_0_7);
+    __m256 m256_floor_breakpoints = _mm256_i32gather_ps(breakpoints, m256i_floor_indices, 4);
 
-    __m256 m256_distances2floor = _mm256_and_ps(_mm256_sub_ps(m256_floor_breakpoints, m256_summarizations),
-                                                _mm256_cmp_ps(m256_summarizations, m256_floor_breakpoints, _CMP_LT_OS));
-    __m256 m256_distances2ceiling = _mm256_and_ps(_mm256_sub_ps(m256_summarizations, m256_ceiling_breakpoints),
-                                                  _mm256_cmp_ps(m256_summarizations, m256_ceiling_breakpoints,
-                                                                _CMP_GT_OS));
+    __m256i m256i_ceiling_indices = _mm256_add_epi32(m256i_floor_indices, M256I_1);
+    __m256 m256_ceiling_breakpoints = _mm256_i32gather_ps(breakpoints, m256i_ceiling_indices, 4);
+
+    __m256 m256_floor_diff = _mm256_sub_ps(m256_floor_breakpoints, m256_summarizations);
+    __m256 m256_floor_indicator = _mm256_cmp_ps(m256_summarizations, m256_floor_breakpoints, _CMP_LT_OS);
+    __m256 m256_distances2floor = _mm256_and_ps(m256_floor_diff, m256_floor_indicator);
+
+    __m256 m256_ceiling_diff = _mm256_sub_ps(m256_summarizations, m256_ceiling_breakpoints);
+    __m256 m256_ceiling_indicator = _mm256_cmp_ps(m256_summarizations, m256_ceiling_breakpoints, _CMP_GT_OS);
+    __m256 m256_distances2ceiling = _mm256_and_ps(m256_ceiling_diff, m256_ceiling_indicator);
 
     __m256 m256_distances = _mm256_add_ps(m256_distances2floor, m256_distances2ceiling);
     __m256 m256_l2square = _mm256_mul_ps(m256_distances, m256_distances);
@@ -210,19 +223,21 @@ Value l2SquareValue2SAX8SIMD(unsigned int sax_length, Value const *summarization
     // sax_length == 8 or 16, ONLY
     if (sax_length == 16) {
         m256_summarizations = _mm256_loadu_ps(summarizations + 8);
-
         m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 1));
-        m256i_breakpoint_indices = _mm256_add_epi32(m256i_sax, M256I_BREAKPOINTS8_OFFSETS_8_15);
 
-        m256_floor_breakpoints = _mm256_i32gather_ps(breakpoints, m256i_breakpoint_indices, 4);
-        m256_ceiling_breakpoints = _mm256_i32gather_ps(breakpoints,
-                                                       _mm256_add_epi32(m256i_breakpoint_indices, M256I_1), 4);
+        m256i_floor_indices = _mm256_add_epi32(m256i_sax, M256I_BREAKPOINTS8_OFFSETS_8_15);
+        m256_floor_breakpoints = _mm256_i32gather_ps(breakpoints, m256i_floor_indices, 4);
 
-        m256_distances2floor = _mm256_and_ps(_mm256_sub_ps(m256_floor_breakpoints, m256_summarizations),
-                                             _mm256_cmp_ps(m256_summarizations, m256_floor_breakpoints, _CMP_LT_OS));
-        m256_distances2ceiling = _mm256_and_ps(_mm256_sub_ps(m256_summarizations, m256_ceiling_breakpoints),
-                                               _mm256_cmp_ps(m256_summarizations, m256_ceiling_breakpoints,
-                                                             _CMP_GT_OS));
+        m256i_ceiling_indices = _mm256_add_epi32(m256i_floor_indices, M256I_1);
+        m256_ceiling_breakpoints = _mm256_i32gather_ps(breakpoints, m256i_ceiling_indices, 4);
+
+        m256_floor_diff = _mm256_sub_ps(m256_floor_breakpoints, m256_summarizations);
+        m256_floor_indicator = _mm256_cmp_ps(m256_summarizations, m256_floor_breakpoints, _CMP_LT_OS);
+        m256_distances2floor = _mm256_and_ps(m256_floor_diff, m256_floor_indicator);
+
+        m256_ceiling_diff = _mm256_sub_ps(m256_summarizations, m256_ceiling_breakpoints);
+        m256_ceiling_indicator = _mm256_cmp_ps(m256_summarizations, m256_ceiling_breakpoints, _CMP_GT_OS);
+        m256_distances2ceiling = _mm256_and_ps(m256_ceiling_diff, m256_ceiling_indicator);
 
         m256_distances = _mm256_add_ps(m256_distances2floor, m256_distances2ceiling);
         m256_l2square = _mm256_fmadd_ps(m256_distances, m256_distances, m256_l2square);
