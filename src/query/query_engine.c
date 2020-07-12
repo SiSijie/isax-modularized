@@ -261,6 +261,7 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
     unsigned int series_length = config->series_length;
     unsigned int sax_length = config->sax_length;
     unsigned int sax_cardinality = config->sax_cardinality;
+    Value scale_factor = config->scale_factor;
 
     ID shared_leaf_id;
 
@@ -289,7 +290,6 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
 #endif
 
     Value *leaf_distances = malloc(sizeof(Value) * num_leaves);
-    Value scale_factor = (Value) series_length / (Value) sax_length;
     unsigned int block_size = num_leaves / (max_threads << 3u);
     if (block_size < 4) {
         block_size = 4;

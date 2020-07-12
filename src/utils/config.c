@@ -26,6 +26,7 @@ const struct option longopts[] = {
         {"k",                               required_argument, 0,    18},
         {"sort_leaves",                     no_argument,       0,    19},
         {"split_by_summarizations",         no_argument,       0,    20},
+        {"scale_factor",                    required_argument, 0,    21},
         {NULL,                              no_argument,       NULL, 0}
 };
 
@@ -77,6 +78,7 @@ Config *initializeConfig(int argc, char **argv) {
 
     config->sax_cardinality = 8;
     config->sax_length = 16;
+    config->scale_factor = -1;
 
     config->use_adhoc_breakpoints = false;
     config->exact_search = false;
@@ -152,6 +154,9 @@ Config *initializeConfig(int argc, char **argv) {
             case 20:
                 config->split_by_summarizations = true;
                 break;
+            case 21:
+                config->scale_factor = strtof(optarg, &string_parts);
+                break;
             default:
                 exit(EXIT_FAILURE);
         }
@@ -166,6 +171,12 @@ Config *initializeConfig(int argc, char **argv) {
     assert(config->series_length > 0);
     assert(config->leaf_size > 0 && config->initial_leaf_size > 0 && config->initial_leaf_size <= config->leaf_size);
     assert(config->k >= 0 && config->k <= 1024);
+
+    if (VALUE_EQ(config->scale_factor, -1)) {
+        config->scale_factor = (Value) config->series_length / (Value) config->sax_length;
+    } else {
+        assert(config->scale_factor > 0);
+    }
 
     assert(config->cpu_cores > 0 && config->numa_cores > 0 &&
            ((config->numa_cores == 2 && config->cpu_cores <= 32) ||

@@ -50,6 +50,8 @@ typedef struct Config {
     unsigned int max_threads;
 
     unsigned int index_block_size;
+
+    Value scale_factor;
 } Config;
 
 
