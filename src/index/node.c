@@ -28,6 +28,20 @@ Node *initializeNode(SAXWord *sax, SAXMask *masks) {
 }
 
 
+void insertNode(Node *leaf, ID id, unsigned int initial_leaf_size, unsigned int leaf_size) {
+    if (leaf->capacity == 0) {
+        leaf->ids = malloc(sizeof(ID) * (leaf->capacity = initial_leaf_size));
+    } else if (leaf->size == leaf->capacity) {
+        if ((leaf->capacity *= 2) > leaf_size) {
+            leaf->capacity = leaf_size;
+        }
+        leaf->ids = realloc(leaf->ids, sizeof(ID) * leaf->capacity);
+    }
+
+    leaf->ids[leaf->size++] = id;
+}
+
+
 void inspectNode(Node *node, unsigned int *num_series, unsigned int *num_leaves, unsigned int *num_roots) {
     if (node != NULL) {
         if (node->size != 0) {

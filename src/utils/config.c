@@ -105,7 +105,7 @@ Config *initializeConfig(int argc, char **argv) {
                 config->query_summarization_filepath = optarg;
                 break;
             case 5:
-                config->database_size = (unsigned int) strtoul(optarg, &string_parts, 10);
+                config->database_size = (ID) strtoull(optarg, &string_parts, 10);
                 break;
             case 6:
                 config->query_size = (unsigned int) strtoul(optarg, &string_parts, 10);
@@ -184,22 +184,22 @@ void logConfig(Config const *config) {
     clog_info(CLOG(CLOGGER_ID), "config - query_summarization_filepath = %s", config->query_summarization_filepath);
     clog_info(CLOG(CLOGGER_ID), "config - log_filepath = %s", config->log_filepath);
 
-    clog_info(CLOG(CLOGGER_ID), "config - series_length = %lu", config->series_length);
+    clog_info(CLOG(CLOGGER_ID), "config - series_length = %u", config->series_length);
     clog_info(CLOG(CLOGGER_ID), "config - database_size = %lu", config->database_size);
-    clog_info(CLOG(CLOGGER_ID), "config - query_size = %lu", config->query_size);
-    clog_info(CLOG(CLOGGER_ID), "config - sax_length = %lu", config->sax_length);
+    clog_info(CLOG(CLOGGER_ID), "config - query_size = %u", config->query_size);
+    clog_info(CLOG(CLOGGER_ID), "config - sax_length = %u", config->sax_length);
     clog_info(CLOG(CLOGGER_ID), "config - sax_cardinality = %d", config->sax_cardinality);
     clog_info(CLOG(CLOGGER_ID), "config - adhoc_breakpoints = %d", config->use_adhoc_breakpoints);
 
     clog_info(CLOG(CLOGGER_ID), "config - exact_search = %d", config->exact_search);
     clog_info(CLOG(CLOGGER_ID), "config - k = %d", config->k);
 
-    clog_info(CLOG(CLOGGER_ID), "config - leaf_size = %lu", config->leaf_size);
-    clog_info(CLOG(CLOGGER_ID), "config - initial_leaf_size = %lu", config->initial_leaf_size);
+    clog_info(CLOG(CLOGGER_ID), "config - leaf_size = %u", config->leaf_size);
+    clog_info(CLOG(CLOGGER_ID), "config - initial_leaf_size = %u", config->initial_leaf_size);
     clog_info(CLOG(CLOGGER_ID), "config - sort_leaves = %d", config->sort_leaves);
     clog_info(CLOG(CLOGGER_ID), "config - split_by_summarizations = %d", config->split_by_summarizations);
 
     clog_info(CLOG(CLOGGER_ID), "config - cpu_cores = %d", config->cpu_cores);
     clog_info(CLOG(CLOGGER_ID), "config - numa_cores = %d", config->numa_cores);
-    clog_info(CLOG(CLOGGER_ID), "config - index_block_size = %lu", config->index_block_size);
+    clog_info(CLOG(CLOGGER_ID), "config - index_block_size = %u", config->index_block_size);
 }

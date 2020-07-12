@@ -19,7 +19,7 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
 
     Value *values = malloc(sizeof(Value) * config->series_length * config->query_size);
     FILE *file_values = fopen(config->query_filepath, "rb");
-    unsigned int read_values = fread(values, sizeof(Value), config->series_length * config->query_size, file_values);
+    size_t read_values = fread(values, sizeof(Value), config->series_length * config->query_size, file_values);
     fclose(file_values);
     assert(read_values == config->series_length * config->query_size);
 
@@ -80,6 +80,7 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
 
 void freeQuery(QuerySet *queries) {
     free((Value *) queries->values);
+    free((Value *) queries->summarizations);
     free((Value *) queries->saxs);
     free(queries);
 }

@@ -19,8 +19,8 @@ typedef struct Node {
     SAXMask *masks;
     SAXMask *squeezed_masks;
 
-    unsigned int *ids;
-    unsigned int start_id;
+    ID *ids;
+    ID start_id;
     unsigned int size;
     unsigned int capacity;
 
@@ -32,6 +32,8 @@ typedef struct Node {
 Node *initializeNode(SAXWord *saxWord, SAXMask *saxMask);
 
 void inspectNode(Node *node, unsigned int *num_series, unsigned int *num_leaves, unsigned int *num_roots);
+
+void insertNode(Node *leaf, ID id, unsigned int initial_leaf_size, unsigned int leaf_size);
 
 void freeNode(Node *node, bool free_mask, bool free_sax);
 

@@ -6,32 +6,26 @@
 
 
 typedef struct QueryCache {
-    Answer *answer;
     Index const *index;
-
-    Node *const *leaves;
+    Node const *const *leaves;
     Value *leaf_distances;
     unsigned int num_leaves;
 
-    Value scale_factor;
-
+    Answer *answer;
     Value const *query_values;
     Value const *query_summarization;
+    Node *resident_node;
 
-    unsigned int *shared_leaf_id;
+    ID *shared_leaf_id;
     unsigned int block_size;
 
     Value *m256_fetched_cache;
-
-    Node *resident_node;
+    Value scale_factor;
 } QueryCache;
 
 
 void *queryThread(void *cache) {
     QueryCache *queryCache = (QueryCache *) cache;
-
-    Answer *answer = queryCache->answer;
-    pthread_rwlock_t *lock = answer->lock;
 
     Value const *values = queryCache->index->values;
     SAXWord const *saxs = queryCache->index->saxs;
@@ -40,22 +34,26 @@ void *queryThread(void *cache) {
     unsigned int series_length = queryCache->index->series_length;
     unsigned int sax_length = queryCache->index->sax_length;
 
-    Node *const *leaves = queryCache->leaves;
+    Node const *const *leaves = queryCache->leaves;
     Value *leaf_distances = queryCache->leaf_distances;
 
     Value const *query_summarization = queryCache->query_summarization;
     Value const *query_values = queryCache->query_values;
-    Value scale_factor = queryCache->scale_factor;
+
+    Answer *answer = queryCache->answer;
+    pthread_rwlock_t *lock = answer->lock;
+
     Value *m256_fetched_cache = queryCache->m256_fetched_cache;
+    Value scale_factor = queryCache->scale_factor;
 
     unsigned int block_size = queryCache->block_size;
     unsigned int num_leaves = queryCache->num_leaves;
-    unsigned int *shared_leaf_id = queryCache->shared_leaf_id;
+    ID *shared_leaf_id = queryCache->shared_leaf_id;
 
     Value const *current_series;
     SAXWord const *current_sax;
     Value local_bsf, local_l2Square, local_l2SquareSAX8SIMD;
-    unsigned int leaf_id, stop_leaf_id, leaf_start_id, leaf_size;
+    ID leaf_id, stop_leaf_id, leaf_start_id, leaf_size;
 
     while ((leaf_id = __sync_fetch_and_add(shared_leaf_id, block_size)) < num_leaves) {
         pthread_rwlock_rdlock(lock);
@@ -78,7 +76,6 @@ void *queryThread(void *cache) {
 #ifdef PROFILING
                 __sync_fetch_and_add(&visited_leaves_counter_profiling, 1);
 #endif
-
                 for (current_series = values + series_length * leaf_start_id,
                              current_sax = saxs + sax_length * leaf_start_id;
                      current_series < values + series_length * (leaf_start_id + leaf_size);
@@ -86,7 +83,6 @@ void *queryThread(void *cache) {
 #ifdef PROFILING
                     __sync_fetch_and_add(&visited_series_counter_profiling, 1);
 #endif
-
                     local_l2SquareSAX8SIMD = l2SquareValue2SAX8SIMD(sax_length, query_summarization, current_sax,
                                                                     breakpoints, scale_factor, m256_fetched_cache);
 
@@ -94,7 +90,6 @@ void *queryThread(void *cache) {
 #ifdef PROFILING
                         __sync_fetch_and_add(&calculated_series_counter_profiling, 1);
 #endif
-
                         local_l2Square = l2SquareEarlySIMD(series_length, query_values, current_series, local_bsf,
                                                            m256_fetched_cache);
 
@@ -133,10 +128,11 @@ void *leafThread(void *cache) {
 
     unsigned int block_size = queryCache->block_size;
     unsigned int num_leaves = queryCache->num_leaves;
-    unsigned int *shared_leaf_id = queryCache->shared_leaf_id;
+    ID *shared_leaf_id = queryCache->shared_leaf_id;
 
-    unsigned int leaf_id, stop_leaf_id;
+    ID leaf_id, stop_leaf_id;
     Node const *leaf;
+
     while ((leaf_id = __sync_fetch_and_add(shared_leaf_id, block_size)) < num_leaves) {
         stop_leaf_id = leaf_id + block_size;
         if (stop_leaf_id > num_leaves) {
@@ -238,6 +234,7 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
     for (unsigned int j = 0; j < index->roots_size; ++j) {
         enqueueLeaf(index->roots[j], leaves, &num_leaves);
     }
+    assert(num_leaves == index->num_leaves);
 
 #ifdef FINE_TIMING
     clock_code = clock_gettime(CLK_ID, &stop_timestamp);
@@ -246,13 +243,11 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
     clog_info(CLOG(CLOGGER_ID), "query - fetch leaves = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
 #endif
 
-    assert(num_leaves == index->num_leaves);
-
     Value *leaf_distances = malloc(sizeof(Value) * num_leaves);
     Value scale_factor = (Value) config->series_length / (Value) config->sax_length;
-    unsigned int block_size = num_leaves / (config->max_threads << 2u);
-    if (block_size < 2) {
-        block_size = 2;
+    unsigned int block_size = num_leaves / (config->max_threads << 3u);
+    if (block_size < 4) {
+        block_size = 4;
     }
 
     for (unsigned int i = 0; i < config->max_threads; ++i) {
@@ -260,7 +255,7 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
         queryCache[i].index = index;
 
         queryCache[i].num_leaves = num_leaves;
-        queryCache[i].leaves = leaves;
+        queryCache[i].leaves = (Node const *const *) leaves;
         queryCache[i].leaf_distances = leaf_distances;
 
         queryCache[i].scale_factor = scale_factor;
@@ -269,10 +264,12 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
         queryCache[i].m256_fetched_cache = malloc(sizeof(Value) * 8);
     }
 
+    Value const *query_values, *query_summarization;
+    SAXWord const *query_sax;
     for (unsigned int i = 0; i < querySet->query_size; ++i) {
-        Value const *query_values = querySet->values + config->series_length * i;
-        Value const *query_summarization = querySet->summarizations + config->sax_length * i;
-        SAXWord const *query_sax = querySet->saxs + config->sax_length * i;
+        query_values = querySet->values + config->series_length * i;
+        query_summarization = querySet->summarizations + config->sax_length * i;
+        query_sax = querySet->saxs + config->sax_length * i;
 
 #ifdef PROFILING
         query_id_profiling = i;
@@ -280,7 +277,6 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
         visited_series_counter_profiling = 0;
         calculated_series_counter_profiling = 0;
 #endif
-
 #ifdef FINE_TIMING
         clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
@@ -291,12 +287,10 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
             while (node->left != NULL) {
                 node = route(node, query_sax, config->sax_length);
             }
-
 #ifdef PROFILING
             visited_leaves_counter_profiling += 1;
             clog_info(CLOG(CLOGGER_ID), "query %d - affiliated leaf size = %d", i, node->size);
 #endif
-
             for (Value const *j = index->values + config->series_length * node->start_id;
                  j < index->values + config->series_length * (node->start_id + node->size);
                  j += config->series_length) {
@@ -309,7 +303,6 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
                                                           queryCache[0].m256_fetched_cache));
             }
         }
-
 #ifdef FINE_TIMING
         clock_code = clock_gettime(CLK_ID, &stop_timestamp);
         getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
@@ -317,7 +310,7 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
         clog_info(CLOG(CLOGGER_ID), "query %d - approximate search = %ld.%lds", i, time_diff.tv_sec, time_diff.tv_nsec);
 #endif
 
-        if (config->exact_search && !(answer->size == answer->k && getBSF(answer) == 0)) {
+        if (config->exact_search && !(getBSF(answer) == 0 && answer->size == answer->k)) {
             logAnswer(querySet->query_size + i, answer);
 
 #ifdef FINE_TIMING
@@ -325,10 +318,11 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
 #endif
 
             pthread_t leaves_threads[config->max_threads];
+            ID shared_leaf_id = 0;
 
-            for (unsigned int shared_leaf_id = 0, j = 0; j < config->max_threads; ++j) {
-                queryCache[j].query_values = (Value const *) query_values;
-                queryCache[j].query_summarization = (Value const *) query_summarization;
+            for (unsigned int j = 0; j < config->max_threads; ++j) {
+                queryCache[j].query_values = query_values;
+                queryCache[j].query_summarization = query_summarization;
 
                 queryCache[j].shared_leaf_id = &shared_leaf_id;
 
@@ -344,22 +338,20 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
             if (config->sort_leaves) {
                 qSortBy(leaves, leaf_distances, 0, (int) (num_leaves - 1));
             }
-
 #ifdef FINE_TIMING
             clock_code = clock_gettime(CLK_ID, &stop_timestamp);
             getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
 
             clog_info(CLOG(CLOGGER_ID), "query %d - calculate leaves distances = %ld.%lds", i, time_diff.tv_sec,
                       time_diff.tv_nsec);
-#endif
 
-#ifdef FINE_TIMING
             clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
             pthread_t query_threads[config->max_threads];
+            shared_leaf_id = 0;
 
-            for (unsigned int shared_leaf_id = 0, j = 0; j < config->max_threads; ++j) {
+            for (unsigned int j = 0; j < config->max_threads; ++j) {
                 queryCache[j].shared_leaf_id = &shared_leaf_id;
 
                 pthread_create(&query_threads[j], NULL, queryThread, (void *) &queryCache[j]);
@@ -368,15 +360,13 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
             for (unsigned int j = 0; j < config->max_threads; ++j) {
                 pthread_join(query_threads[j], NULL);
             }
-        }
-
 #ifdef FINE_TIMING
-        clock_code = clock_gettime(CLK_ID, &stop_timestamp);
-        getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
+            clock_code = clock_gettime(CLK_ID, &stop_timestamp);
+            getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
 
-        clog_info(CLOG(CLOGGER_ID), "query %d - exact search = %ld.%lds", i, time_diff.tv_sec, time_diff.tv_nsec);
+            clog_info(CLOG(CLOGGER_ID), "query %d - exact search = %ld.%lds", i, time_diff.tv_sec, time_diff.tv_nsec);
 #endif
-
+        }
 #ifdef PROFILING
         clog_info(CLOG(CLOGGER_ID), "query %d - %d visited / %d leaves", i, visited_leaves_counter_profiling,
                   num_leaves);
@@ -387,7 +377,6 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
         logAnswer(i, answer);
         cleanAnswer(answer);
     }
-
 
     for (unsigned int i = 0; i < config->max_threads; ++i) {
         free(queryCache[i].m256_fetched_cache);

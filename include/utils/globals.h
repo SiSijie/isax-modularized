@@ -11,10 +11,10 @@
 #include <pthread.h>
 
 
-//#define DEBUG
+#define DEBUG
 
 
-//#define FINE_TIMING
+#define FINE_TIMING
 #define TIMING
 
 #ifdef FINE_TIMING
@@ -69,6 +69,7 @@ typedef float Value;
 // TODO only supports sax_cardinality <= 8
 typedef unsigned char SAXWord;
 typedef unsigned int SAXMask;
+typedef size_t ID;
 
 
 #define VALUE_L(left, right) ((right) - (left) > VALUE_EPSILON)

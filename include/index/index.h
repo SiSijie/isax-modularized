@@ -24,12 +24,12 @@ typedef struct Index {
 
     Value const *values;
 
-    unsigned int database_size;
+    ID database_size;
     unsigned int series_length;
 
-    Value const *summarizations;
-    Value const *breakpoints;
     SAXWord const *saxs;
+    Value const *breakpoints;
+    Value const *summarizations;
 
     unsigned int sax_length;
     unsigned int sax_cardinality;

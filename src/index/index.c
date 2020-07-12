@@ -52,8 +52,7 @@ Index *initializeIndex(Config const *config) {
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
-    // initialize first-layer (root) nodes of (1 bit * sax_length) SAX
-    index->roots_size = 1u << (unsigned int) config->sax_length;
+    index->roots_size = 1u << config->sax_length;
     index->roots = malloc(sizeof(Node *) * index->roots_size);
     SAXMask *root_masks = malloc(sizeof(SAXMask) * config->sax_length);
     for (unsigned int i = 0; i < config->sax_length; ++i) {
@@ -74,8 +73,9 @@ Index *initializeIndex(Config const *config) {
 #endif
 
     Value *values = malloc(sizeof(Value) * config->series_length * config->database_size);
+
     FILE *file_values = fopen(config->database_filepath, "rb");
-    unsigned int read_values = fread(values, sizeof(Value), config->series_length * config->database_size, file_values);
+    size_t read_values = fread(values, sizeof(Value), config->series_length * config->database_size, file_values);
     fclose(file_values);
     assert(read_values == config->series_length * config->database_size);
 
@@ -90,19 +90,17 @@ Index *initializeIndex(Config const *config) {
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
+    Value *summarizations = malloc(sizeof(Value) * config->sax_length * config->database_size);
+
     if (config->database_summarization_filepath != NULL) {
-        Value *summarizations = malloc(sizeof(Value) * config->sax_length * config->database_size);
         FILE *file_summarizations = fopen(config->database_summarization_filepath, "rb");
         read_values = fread(summarizations, sizeof(Value), config->sax_length * config->database_size,
                             file_summarizations);
         fclose(file_summarizations);
         assert(read_values == config->sax_length * config->database_size);
-
-        index->summarizations = (Value const *) summarizations;
     } else {
-        index->summarizations = (Value const *) piecewiseAggregate(index->values, config->database_size,
-                                                                   config->series_length, config->sax_length,
-                                                                   config->max_threads);
+        summarizations = piecewiseAggregate(index->values, config->database_size, config->series_length,
+                                            config->sax_length, config->max_threads);
     }
 
 #ifdef FINE_TIMING
@@ -120,7 +118,7 @@ Index *initializeIndex(Config const *config) {
 #endif
 
     if (config->use_adhoc_breakpoints) {
-        index->breakpoints = getAdhocBreakpoints8(index->summarizations, config->database_size, config->sax_length,
+        index->breakpoints = getAdhocBreakpoints8(summarizations, config->database_size, config->sax_length,
                                                   config->max_threads);
     } else {
         index->breakpoints = getNormalBreakpoints8(config->sax_length);
@@ -140,7 +138,7 @@ Index *initializeIndex(Config const *config) {
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
-    index->saxs = (SAXWord const *) summarizations2SAXs(index->summarizations, index->breakpoints, index->database_size,
+    index->saxs = (SAXWord const *) summarizations2SAXs(summarizations, index->breakpoints, index->database_size,
                                                         index->sax_length, index->sax_cardinality, config->max_threads);
 
 #ifdef FINE_TIMING
@@ -150,6 +148,12 @@ Index *initializeIndex(Config const *config) {
     clog_info(CLOG(CLOGGER_ID), "index - calculate SAXs = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
 #endif
 
+    if (config->split_by_summarizations) {
+        index->summarizations = (Value const *) summarizations;
+    } else {
+        free(summarizations);
+        index->summarizations = NULL;
+    }
     return index;
 }
 

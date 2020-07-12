@@ -28,7 +28,7 @@ typedef struct Config {
     char *query_summarization_filepath;
     char *log_filepath;
 
-    unsigned int database_size;
+    ID database_size;
     unsigned int query_size;
 
     unsigned int series_length;
