@@ -219,6 +219,39 @@ void qSortBy(Node **nodes, Value *distances, int first, int last) {
 }
 
 
+void qSortFirstHalfBy(Node **nodes, Value *distances, int first, int last, Value pivot) {
+    if (first < last) {
+        Node *tmp_node;
+        Value tmp_distance;
+
+        int first_g = first - 1, last_l = last + 1;
+        while (true) {
+            do {
+                first_g += 1;
+            } while (VALUE_L(distances[first_g], pivot));
+
+            do {
+                last_l -= 1;
+            } while (VALUE_G(distances[last_l], pivot));
+
+            if (first_g >= last_l) {
+                break;
+            }
+
+            tmp_node = nodes[first_g];
+            nodes[first_g] = nodes[last_l];
+            nodes[last_l] = tmp_node;
+
+            tmp_distance = distances[first_g];
+            distances[first_g] = distances[last_l];
+            distances[last_l] = tmp_distance;
+        }
+
+        qSortBy(nodes, distances, first, last_l);
+    }
+}
+
+
 void conductQueries(QuerySet const *querySet, Index const *index, Config const *config) {
     Answer *answer = initializeAnswer(config);
 
@@ -297,6 +330,7 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
 
         unsigned int rootID = rootSAX2ID(query_sax, sax_length, sax_cardinality);
         Node *node = index->roots[rootID];
+        Value local_bsf = getBSF(answer);
 
         if (node != NULL) {
             while (node->left != NULL) {
@@ -307,7 +341,7 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
             clog_info(CLOG(CLOGGER_ID), "query %d - affiliated leaf size = %d", i, node->size);
 #endif
 
-            Value local_l2SquareSAX8, local_l2Square, local_bsf = getBSF(answer);
+            Value local_l2SquareSAX8, local_l2Square;
             Value const *current_series = values + series_length * node->start_id;
             SAXWord const *current_sax = saxs + sax_length * node->start_id;
 
@@ -372,16 +406,25 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
                 pthread_join(leaves_threads[j], NULL);
             }
 
-            if (config->sort_leaves) {
-                qSortBy(leaves, leaf_distances, 0, (int) (num_leaves - 1));
-            }
 #ifdef FINE_TIMING
             clock_code = clock_gettime(CLK_ID, &stop_timestamp);
             getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
 
             clog_info(CLOG(CLOGGER_ID), "query %d - calculate leaves distances = %ld.%lds", i, time_diff.tv_sec,
                       time_diff.tv_nsec);
+#endif
 
+            if (config->sort_leaves) {
+#ifdef FINE_TIMING
+                clock_code = clock_gettime(CLK_ID, &start_timestamp);
+#endif
+                qSortFirstHalfBy(leaves, leaf_distances, 0, (int) (num_leaves - 1), local_bsf);
+#ifdef FINE_TIMING
+                clog_info(CLOG(CLOGGER_ID), "query %d - sort leaves distances = %ld.%lds", i, time_diff.tv_sec,
+                          time_diff.tv_nsec);
+#endif
+            }
+#ifdef FINE_TIMING
             clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
