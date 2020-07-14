@@ -6,7 +6,7 @@
 
 
 SAXWord *rootID2SAX(unsigned int id, unsigned int num_segments, unsigned int cardinality) {
-    SAXWord *sax = malloc(sizeof(SAXWord) * num_segments);
+    SAXWord *sax = aligned_alloc(128, sizeof(SAXWord) * num_segments);
 
     for (unsigned int i = 0; i < num_segments; ++i) {
         sax[num_segments - 1 - i] = (SAXWord) ((id % 2) << (cardinality - 1));
@@ -54,7 +54,7 @@ Index *initializeIndex(Config const *config) {
 
     index->roots_size = 1u << config->sax_length;
     index->roots = malloc(sizeof(Node *) * index->roots_size);
-    SAXMask *root_masks = malloc(sizeof(SAXMask) * config->sax_length);
+    SAXMask *root_masks = aligned_alloc(256, sizeof(SAXMask) * config->sax_length);
     for (unsigned int i = 0; i < config->sax_length; ++i) {
         root_masks[i] = (SAXMask) (1u << (config->sax_cardinality - 1));
     }
@@ -72,7 +72,7 @@ Index *initializeIndex(Config const *config) {
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
-    Value *values = malloc(sizeof(Value) * config->series_length * config->database_size);
+    Value *values = aligned_alloc(256, sizeof(Value) * config->series_length * config->database_size);
 
     FILE *file_values = fopen(config->database_filepath, "rb");
     size_t read_values = fread(values, sizeof(Value), config->series_length * config->database_size, file_values);
@@ -90,7 +90,7 @@ Index *initializeIndex(Config const *config) {
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
-    Value *summarizations = malloc(sizeof(Value) * config->sax_length * config->database_size);
+    Value *summarizations = aligned_alloc(256, sizeof(Value) * config->sax_length * config->database_size);
 
     if (config->database_summarization_filepath != NULL) {
         FILE *file_summarizations = fopen(config->database_summarization_filepath, "rb");

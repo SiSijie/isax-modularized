@@ -67,7 +67,7 @@ void *piecewiseAggregateThread(void *cache) {
 
 Value *piecewiseAggregate(Value const *values, ID size, unsigned int series_length, unsigned int summarization_length,
                           unsigned int num_threads) {
-    Value *paas = malloc(sizeof(Value) * summarization_length * size);
+    Value *paas = aligned_alloc(256, sizeof(Value) * summarization_length * size);
 
     ID shared_processed_counter = 0;
     unsigned int block_size = 1 + size / (num_threads << 2u);

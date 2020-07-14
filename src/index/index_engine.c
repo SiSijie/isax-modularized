@@ -170,11 +170,11 @@ void splitNode(Index *index, Node *parent, unsigned int num_segments, bool split
         exit(EXIT_FAILURE);
     }
 
-    SAXMask *child_masks = malloc(sizeof(SAXMask) * num_segments);
+    SAXMask *child_masks = aligned_alloc(256, sizeof(SAXMask) * num_segments);
     memcpy(child_masks, parent->masks, sizeof(SAXMask) * num_segments);
     child_masks[segment_to_split] >>= 1u;
 
-    SAXWord *right_sax = malloc(sizeof(SAXWord) * num_segments);
+    SAXWord *right_sax = aligned_alloc(128, sizeof(SAXWord) * num_segments);
     memcpy(right_sax, parent->sax, sizeof(SAXWord) * num_segments);
     right_sax[segment_to_split] |= child_masks[segment_to_split];
 
@@ -307,8 +307,8 @@ void permute(Value *values, SAXWord *saxs, ssize_t *permutation, ssize_t size, u
              unsigned int sax_length) {
     unsigned int series_bytes = sizeof(Value) * series_length, sax_bytes = sizeof(SAXWord) * sax_length;
 
-    Value *values_cache = malloc(series_bytes);
-    SAXWord *sax_cache = malloc(sax_bytes);
+    Value *values_cache = aligned_alloc(64, series_bytes);
+    SAXWord *sax_cache = aligned_alloc(64, sax_bytes);
 
     ssize_t tmp;
     for (ID next, i = 0; i < size; ++i) {
@@ -339,7 +339,7 @@ void squeezeNode(Node *node, Index *index, bool *segment_flags) {
         squeezeNode(node->left, index, segment_flags);
         squeezeNode(node->right, index, segment_flags);
     } else {
-        node->squeezed_masks = malloc(sizeof(SAXMask) * index->sax_length);
+        node->squeezed_masks = aligned_alloc(256, sizeof(SAXMask) * index->sax_length);
         for (unsigned int i = 0; i < index->sax_length; ++i) {
             node->squeezed_masks[i] = 1u;
         }
@@ -399,7 +399,7 @@ void finalizeIndex(Index *index) {
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
-    ssize_t *permutation = malloc(sizeof(ssize_t) * index->database_size);
+    ssize_t *permutation = aligned_alloc(sizeof(ssize_t), sizeof(ssize_t) * index->database_size);
     ID counter = 0;
 
     for (unsigned int i = 0; i < index->roots_size; ++i) {

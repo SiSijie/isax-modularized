@@ -306,7 +306,7 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
         queryCache[i].scale_factor = scale_factor;
         queryCache[i].block_size = block_size;
 
-        queryCache[i].m256_fetched_cache = malloc(sizeof(Value) * 8);
+        queryCache[i].m256_fetched_cache = aligned_alloc(256, sizeof(Value) * 8);
     }
 
     Value *local_m256_fetched_cache = queryCache[0].m256_fetched_cache;

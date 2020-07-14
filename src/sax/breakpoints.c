@@ -66,14 +66,14 @@ void initializeM256IConstants() {
 
     __m256i m256i_cardinality8_offsets = _mm256_i32gather_epi32(OFFSETS_BY_MASK, M256I_1, 4);
 
-    M256I_BREAKPOINTS8_OFFSETS_0_7 = _mm256_add_epi32(_mm256_loadu_si256(M256I_OFFSETS_BY_SEGMENTS),
+    M256I_BREAKPOINTS8_OFFSETS_0_7 = _mm256_add_epi32(_mm256_load_si256(M256I_OFFSETS_BY_SEGMENTS),
                                                       m256i_cardinality8_offsets);
-    M256I_BREAKPOINTS8_OFFSETS_8_15 = _mm256_add_epi32(_mm256_loadu_si256(M256I_OFFSETS_BY_SEGMENTS + 1),
+    M256I_BREAKPOINTS8_OFFSETS_8_15 = _mm256_add_epi32(_mm256_load_si256(M256I_OFFSETS_BY_SEGMENTS + 1),
                                                        m256i_cardinality8_offsets);
 
 
-    M256I_BREAKPOINTS_OFFSETS_0_7 = _mm256_loadu_si256(M256I_OFFSETS_BY_SEGMENTS);
-    M256I_BREAKPOINTS_OFFSETS_8_15 = _mm256_loadu_si256(M256I_OFFSETS_BY_SEGMENTS + 1);
+    M256I_BREAKPOINTS_OFFSETS_0_7 = _mm256_load_si256(M256I_OFFSETS_BY_SEGMENTS);
+    M256I_BREAKPOINTS_OFFSETS_8_15 = _mm256_load_si256(M256I_OFFSETS_BY_SEGMENTS + 1);
 }
 
 
@@ -125,7 +125,7 @@ void *getAdhocBreakpoints8Thread(void *cache) {
 
 Value const *getAdhocBreakpoints8(Value const *summarizations, unsigned int size, unsigned int num_segments,
                                   unsigned int num_threads) {
-    Value *breakpoints = malloc(sizeof(Value) * OFFSETS_BY_SEGMENTS[num_segments]);
+    Value *breakpoints = aligned_alloc(64, sizeof(Value) * OFFSETS_BY_SEGMENTS[num_segments]);
 
     if (num_threads > num_segments) {
         num_threads = num_segments;
@@ -168,7 +168,7 @@ Value const *getAdhocBreakpoints8(Value const *summarizations, unsigned int size
 
 
 Value const *getNormalBreakpoints8(unsigned int num_segments) {
-    Value *breakpoints = malloc(sizeof(Value) * OFFSETS_BY_SEGMENTS[num_segments]);
+    Value *breakpoints = aligned_alloc(256, sizeof(Value) * OFFSETS_BY_SEGMENTS[num_segments]);
 
     extractBreakpoints8(breakpoints, NORMAL_BREAKPOINTS_8, 255);
     for (unsigned int i = 1; i < num_segments; ++i) {

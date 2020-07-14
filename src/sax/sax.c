@@ -68,7 +68,7 @@ void *summarizations2SAXs8Thread(void *cache) {
 SAXWord *
 summarizations2SAXs(Value const *summarizations, Value const *breakpoints, ID size, unsigned int sax_length,
                     unsigned int sax_cardinality, unsigned int num_threads) {
-    SAXWord *saxs = malloc(sizeof(SAXWord) * sax_length * size);
+    SAXWord *saxs = aligned_alloc(256, sizeof(SAXWord) * sax_length * size);
 
     pthread_t threads[num_threads];
     SAXCache saxCache[num_threads];
@@ -139,12 +139,12 @@ Value l2SquareValue2SAX8(unsigned int sax_length, Value const *summarizations, S
 Value l2SquareValue2SAXByMaskSIMD(unsigned int sax_length, Value const *summarizations, SAXWord const *sax,
                                   SAXMask const *masks, Value const *breakpoints, Value scale_factor, Value *cache) {
     __m256i const *m256i_masks = (__m256i const *) masks;
-    __m256i m256i_sax_packed = _mm256_cvtepu8_epi16(_mm_lddqu_si128((__m128i const *) sax));
+    __m256i m256i_sax_packed = _mm256_cvtepu8_epi16(_mm_load_si128((__m128i const *) sax));
 
     __m256 m256_summarizations = _mm256_loadu_ps(summarizations);
     __m256i m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 0));
 
-    __m256i m256i_mask_indices = _mm256_loadu_si256(m256i_masks);
+    __m256i m256i_mask_indices = _mm256_load_si256(m256i_masks);
     __m256i m256i_sax_shifts = _mm256_i32gather_epi32(SHIFTS_BY_MASK, m256i_mask_indices, 4);
     __m256i m256i_cardinality_offsets = _mm256_i32gather_epi32(OFFSETS_BY_MASK, m256i_mask_indices, 4);
 
@@ -169,10 +169,10 @@ Value l2SquareValue2SAXByMaskSIMD(unsigned int sax_length, Value const *summariz
     __m256 m256_l2square = _mm256_mul_ps(m256_l1, m256_l1);
 
     if (sax_length == 16) {
-        m256_summarizations = _mm256_loadu_ps(summarizations + 8);
+        m256_summarizations = _mm256_load_ps(summarizations + 8);
         m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 1));
 
-        m256i_mask_indices = _mm256_loadu_si256(m256i_masks + 1);
+        m256i_mask_indices = _mm256_load_si256(m256i_masks + 1);
         m256i_sax_shifts = _mm256_i32gather_epi32(SHIFTS_BY_MASK, m256i_mask_indices, 4);
         m256i_cardinality_offsets = _mm256_i32gather_epi32(OFFSETS_BY_MASK, m256i_mask_indices, 4);
 
@@ -206,9 +206,9 @@ Value l2SquareValue2SAXByMaskSIMD(unsigned int sax_length, Value const *summariz
 
 Value l2SquareValue2SAX8SIMD(unsigned int sax_length, Value const *summarizations, SAXWord const *sax,
                              Value const *breakpoints, Value scale_factor, Value *cache) {
-    __m256i m256i_sax_packed = _mm256_cvtepu8_epi16(_mm_lddqu_si128((__m128i const *) sax));
+    __m256i m256i_sax_packed = _mm256_cvtepu8_epi16(_mm_load_si128((__m128i const *) sax));
 
-    __m256 m256_summarizations = _mm256_loadu_ps(summarizations);
+    __m256 m256_summarizations = _mm256_load_ps(summarizations);
     __m256i m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 0));
 
     __m256i m256i_floor_indices = _mm256_add_epi32(m256i_sax, M256I_BREAKPOINTS8_OFFSETS_0_7);
@@ -230,7 +230,7 @@ Value l2SquareValue2SAX8SIMD(unsigned int sax_length, Value const *summarization
 
     // sax_length == 8 or 16, ONLY
     if (sax_length == 16) {
-        m256_summarizations = _mm256_loadu_ps(summarizations + 8);
+        m256_summarizations = _mm256_load_ps(summarizations + 8);
         m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 1));
 
         m256i_floor_indices = _mm256_add_epi32(m256i_sax, M256I_BREAKPOINTS8_OFFSETS_8_15);
@@ -252,7 +252,7 @@ Value l2SquareValue2SAX8SIMD(unsigned int sax_length, Value const *summarization
     }
 
     m256_l2square = _mm256_hadd_ps(m256_l2square, m256_l2square);
-    _mm256_storeu_ps(cache, _mm256_hadd_ps(m256_l2square, m256_l2square));
+    _mm256_store_ps(cache, _mm256_hadd_ps(m256_l2square, m256_l2square));
 
     return (cache[0] + cache[4]) * scale_factor;
 }

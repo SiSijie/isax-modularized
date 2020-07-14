@@ -17,7 +17,7 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
-    Value *values = malloc(sizeof(Value) * config->series_length * config->query_size);
+    Value *values = aligned_alloc(256, sizeof(Value) * config->series_length * config->query_size);
     FILE *file_values = fopen(config->query_filepath, "rb");
     size_t read_values = fread(values, sizeof(Value), config->series_length * config->query_size, file_values);
     fclose(file_values);
@@ -35,7 +35,7 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
 #endif
 
     if (config->query_summarization_filepath != NULL) {
-        Value *summarizations = malloc(sizeof(Value) * config->sax_length * config->query_size);
+        Value *summarizations = aligned_alloc(256, sizeof(Value) * config->sax_length * config->query_size);
         FILE *file_summarizations = fopen(config->query_summarization_filepath, "rb");
         read_values = fread(summarizations, sizeof(Value), config->sax_length * config->query_size,
                             file_summarizations);
