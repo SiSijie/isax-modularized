@@ -56,49 +56,49 @@ unsigned int decideSplitSegmentByNextBit(Index *index, Node *parent, unsigned in
             if (local_difference < bsf_difference) {
                 segment_to_split = i;
                 bsf_difference = abs(local_difference);
-#ifdef DEBUG
-                clog_debug(CLOG(CLOGGER_ID), "index - difference of segment %d of mask %d = %d", i, next_bit,
-                           local_difference);
-#endif
+//#ifdef DEBUG
+//                clog_debug(CLOG(CLOGGER_ID), "index - difference of segment %d of mask %d = %d", i, next_bit,
+//                           local_difference);
+//#endif
             } else if (local_difference == bsf_difference && parent->masks[i] > parent->masks[segment_to_split]) {
                 segment_to_split = i;
-#ifdef DEBUG
-                clog_debug(CLOG(CLOGGER_ID), "index - difference of segment %d of mask %d = %d", i, next_bit,
-                           local_difference);
-#endif
+//#ifdef DEBUG
+//                clog_debug(CLOG(CLOGGER_ID), "index - difference of segment %d of mask %d = %d", i, next_bit,
+//                           local_difference);
+//#endif
             }
         }
     }
 
-#ifdef DEBUG
-    if (bsf_difference == parent->size) {
-        for (unsigned int i = 0; i < num_segments; i += 8) {
-            clog_debug(CLOG(CLOGGER_ID), "index - sax %d-%d (node) = %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d",
-                       i, i + 4, parent->sax[i], parent->masks[i], parent->sax[i + 1], parent->masks[i + 1],
-                       parent->sax[i + 2], parent->masks[i + 2], parent->sax[i + 3], parent->masks[i + 3],
-                       parent->sax[i + 4], parent->masks[i + 4], parent->sax[i + 5], parent->masks[i + 5],
-                       parent->sax[i + 6], parent->masks[i + 6], parent->sax[i + 7], parent->masks[i + 7]);
-        }
-
-        for (unsigned int i = 0; i < parent->size; ++i) {
-            for (unsigned int j = 0; j < num_segments; j += 8) {
-                size_t summarization_offset = index->sax_length * parent->ids[i] + j;
-                clog_debug(CLOG(CLOGGER_ID), "index - summarizations %d-%d (series %d) = %f %f %f %f %f %f %f %f", j, j + 8, i,
-                           index->summarizations[summarization_offset], index->summarizations[summarization_offset + 1],
-                           index->summarizations[summarization_offset + 2], index->summarizations[summarization_offset + 3],
-                           index->summarizations[summarization_offset + 4], index->summarizations[summarization_offset + 5],
-                           index->summarizations[summarization_offset + 6], index->summarizations[summarization_offset + 7]);
-
-                size_t sax_offset = index->sax_length * parent->ids[i] + j;
-                clog_debug(CLOG(CLOGGER_ID), "index - sax %d-%d (series %d) = %d %d %d %d %d %d %d %d", j, j + 8, i,
-                           index->saxs[sax_offset], index->saxs[sax_offset + 1],
-                           index->saxs[sax_offset + 2], index->saxs[sax_offset + 3],
-                           index->saxs[sax_offset + 4], index->saxs[sax_offset + 5],
-                           index->saxs[sax_offset + 6], index->saxs[sax_offset + 7]);
-            }
-        }
-    }
-#endif
+//#ifdef DEBUG
+//    if (bsf_difference == parent->size) {
+//        for (unsigned int i = 0; i < num_segments; i += 8) {
+//            clog_debug(CLOG(CLOGGER_ID), "index - sax %d-%d (node) = %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d",
+//                       i, i + 4, parent->sax[i], parent->masks[i], parent->sax[i + 1], parent->masks[i + 1],
+//                       parent->sax[i + 2], parent->masks[i + 2], parent->sax[i + 3], parent->masks[i + 3],
+//                       parent->sax[i + 4], parent->masks[i + 4], parent->sax[i + 5], parent->masks[i + 5],
+//                       parent->sax[i + 6], parent->masks[i + 6], parent->sax[i + 7], parent->masks[i + 7]);
+//        }
+//
+//        for (unsigned int i = 0; i < parent->size; ++i) {
+//            for (unsigned int j = 0; j < num_segments; j += 8) {
+//                size_t summarization_offset = index->sax_length * parent->ids[i] + j;
+//                clog_debug(CLOG(CLOGGER_ID), "index - summarizations %d-%d (series %d) = %f %f %f %f %f %f %f %f", j, j + 8, i,
+//                           index->summarizations[summarization_offset], index->summarizations[summarization_offset + 1],
+//                           index->summarizations[summarization_offset + 2], index->summarizations[summarization_offset + 3],
+//                           index->summarizations[summarization_offset + 4], index->summarizations[summarization_offset + 5],
+//                           index->summarizations[summarization_offset + 6], index->summarizations[summarization_offset + 7]);
+//
+//                size_t sax_offset = index->sax_length * parent->ids[i] + j;
+//                clog_debug(CLOG(CLOGGER_ID), "index - sax %d-%d (series %d) = %d %d %d %d %d %d %d %d", j, j + 8, i,
+//                           index->saxs[sax_offset], index->saxs[sax_offset + 1],
+//                           index->saxs[sax_offset + 2], index->saxs[sax_offset + 3],
+//                           index->saxs[sax_offset + 4], index->saxs[sax_offset + 5],
+//                           index->saxs[sax_offset + 6], index->saxs[sax_offset + 7]);
+//            }
+//        }
+//    }
+//#endif
 
     return segment_to_split;
 }
@@ -256,7 +256,6 @@ void buildIndex(Config const *config, Index *index) {
 #ifdef FINE_TIMING
     struct timespec start_timestamp, stop_timestamp;
     TimeDiff time_diff;
-
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
@@ -279,7 +278,6 @@ void buildIndex(Config const *config, Index *index) {
 #ifdef FINE_TIMING
     clock_code = clock_gettime(CLK_ID, &stop_timestamp);
     getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
-
     clog_info(CLOG(CLOGGER_ID), "index - build = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
 #endif
 }
@@ -379,14 +377,14 @@ void squeezeNode(Node *node, Index *index, bool *segment_flags) {
             }
         }
 
-#ifdef DEBUG
-        for (unsigned int i = 0; i < index->sax_length; ++i) {
-            if (node->squeezed_masks[i] ^ node->masks[i]) {
-                clog_info(CLOG(CLOGGER_ID), "index - segment %d (node.size %d) squeezed %d --> %d", i, node->size,
-                          node->masks[i], node->squeezed_masks[i]);
-            }
-        }
-#endif
+//#ifdef DEBUG
+//        for (unsigned int i = 0; i < index->sax_length; ++i) {
+//            if (node->squeezed_masks[i] ^ node->masks[i]) {
+//                clog_info(CLOG(CLOGGER_ID), "index - segment %d (node.size %d) squeezed %d --> %d", i, node->size,
+//                          node->masks[i], node->squeezed_masks[i]);
+//            }
+//        }
+//#endif
     }
 }
 
@@ -395,7 +393,6 @@ void finalizeIndex(Index *index) {
 #ifdef FINE_TIMING
     struct timespec start_timestamp, stop_timestamp;
     TimeDiff time_diff;
-
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
@@ -419,7 +416,6 @@ void finalizeIndex(Index *index) {
 #ifdef FINE_TIMING
     clock_code = clock_gettime(CLK_ID, &stop_timestamp);
     getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
-
     clog_info(CLOG(CLOGGER_ID), "index - permute for memory locality = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
 #endif
 
@@ -440,7 +436,6 @@ void finalizeIndex(Index *index) {
 #ifdef FINE_TIMING
     clock_code = clock_gettime(CLK_ID, &stop_timestamp);
     getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
-
     clog_info(CLOG(CLOGGER_ID), "index - squeeze nodes = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
 #endif
 

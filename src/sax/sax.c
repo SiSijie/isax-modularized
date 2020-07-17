@@ -18,21 +18,6 @@ typedef struct SAXCache {
 } SAXCache;
 
 
-unsigned int bSearchFloor(Value value, Value const *breakpoints, unsigned int first, unsigned int last) {
-    while (first + 1 < last) {
-        unsigned int mid = (first + last) >> 1u;
-
-        if (VALUE_L(value, breakpoints[mid])) {
-            last = mid;
-        } else {
-            first = mid;
-        }
-    }
-
-    return first;
-}
-
-
 void *summarizations2SAXs8Thread(void *cache) {
     SAXCache *saxCache = (SAXCache *) cache;
     ID *shared_processed_counter = saxCache->shared_processed_counter;

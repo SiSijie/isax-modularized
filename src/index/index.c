@@ -7,9 +7,10 @@
 
 SAXWord *rootID2SAX(unsigned int id, unsigned int num_segments, unsigned int cardinality) {
     SAXWord *sax = aligned_alloc(128, sizeof(SAXWord) * num_segments);
+    unsigned int offset = cardinality - 1;
 
-    for (unsigned int i = 0; i < num_segments; ++i) {
-        sax[num_segments - 1 - i] = (SAXWord) ((id % 2) << (cardinality - 1));
+    for (unsigned int i = 1; i <= num_segments; ++i) {
+        sax[num_segments - i] = (SAXWord) ((id & 1u) << offset);
         id >>= 1u;
     }
 
@@ -18,11 +19,11 @@ SAXWord *rootID2SAX(unsigned int id, unsigned int num_segments, unsigned int car
 
 
 unsigned int rootSAX2ID(SAXWord const *saxs, unsigned int num_segments, unsigned int cardinality) {
-    unsigned int id = 0;
+    unsigned int id = 0, offset = cardinality - 1;
 
     for (unsigned int i = 0; i < num_segments; ++i) {
         id <<= 1u;
-        id += (unsigned int) (saxs[i] >> (cardinality - 1));
+        id += (unsigned int) (saxs[i] >> offset);
     }
 
     return id;
@@ -48,7 +49,6 @@ Index *initializeIndex(Config const *config) {
 #ifdef FINE_TIMING
     struct timespec start_timestamp, stop_timestamp;
     TimeDiff time_diff;
-
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
@@ -66,9 +66,7 @@ Index *initializeIndex(Config const *config) {
 #ifdef FINE_TIMING
     clock_code = clock_gettime(CLK_ID, &stop_timestamp);
     getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
-
     clog_info(CLOG(CLOGGER_ID), "index - initialize roots = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
-
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
@@ -84,9 +82,7 @@ Index *initializeIndex(Config const *config) {
 #ifdef FINE_TIMING
     clock_code = clock_gettime(CLK_ID, &stop_timestamp);
     getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
-
     clog_info(CLOG(CLOGGER_ID), "index - load series = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
-
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
@@ -110,10 +106,8 @@ Index *initializeIndex(Config const *config) {
     }
     clock_code = clock_gettime(CLK_ID, &stop_timestamp);
     getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
-
     clog_info(CLOG(CLOGGER_ID), "index - %s summarizations = %ld.%lds", method4summarizations, time_diff.tv_sec,
               time_diff.tv_nsec);
-
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
@@ -131,10 +125,8 @@ Index *initializeIndex(Config const *config) {
     }
     clock_code = clock_gettime(CLK_ID, &stop_timestamp);
     getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
-
     clog_info(CLOG(CLOGGER_ID), "index - load %s breakpoints = %ld.%lds", method4breakpoints, time_diff.tv_sec,
               time_diff.tv_nsec);
-
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
@@ -144,7 +136,6 @@ Index *initializeIndex(Config const *config) {
 #ifdef FINE_TIMING
     clock_code = clock_gettime(CLK_ID, &stop_timestamp);
     getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
-
     clog_info(CLOG(CLOGGER_ID), "index - calculate SAXs = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
 #endif
 

@@ -6,6 +6,7 @@
 #define ISAX_QUERY_ENGINE_H
 
 #include <time.h>
+#include <math.h>
 
 #include "globals.h"
 #include "config.h"
@@ -14,6 +15,8 @@
 #include "query.h"
 #include "clog.h"
 #include "answer.h"
+#include "sort.h"
+
 
 void conductQueries(QuerySet const *querySet, Index const *index, Config const *config);
 

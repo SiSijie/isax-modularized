@@ -13,7 +13,6 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
 #ifdef FINE_TIMING
     struct timespec start_timestamp, stop_timestamp;
     TimeDiff time_diff;
-
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
@@ -28,9 +27,7 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
 #ifdef FINE_TIMING
     clock_code = clock_gettime(CLK_ID, &stop_timestamp);
     getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
-
     clog_info(CLOG(CLOGGER_ID), "query - load series = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
-
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
@@ -56,10 +53,8 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
     }
     clock_code = clock_gettime(CLK_ID, &stop_timestamp);
     getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
-
     clog_info(CLOG(CLOGGER_ID), "query - %s summarizations = %ld.%lds", method4summarizations, time_diff.tv_sec,
               time_diff.tv_nsec);
-
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
@@ -70,7 +65,6 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
 #ifdef FINE_TIMING
     clock_code = clock_gettime(CLK_ID, &stop_timestamp);
     getTimeDiff(&time_diff, start_timestamp, stop_timestamp);
-
     clog_info(CLOG(CLOGGER_ID), "query - calculate SAXs = %ld.%lds", time_diff.tv_sec, time_diff.tv_nsec);
 #endif
 

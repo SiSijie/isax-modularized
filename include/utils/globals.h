@@ -47,12 +47,12 @@ inline void getTimeDiff(TimeDiff * t_diff, struct timespec t_start, struct times
 #endif
 
 
-//#define PROFILING
+#define PROFILING
 
 #ifdef PROFILING
-unsigned int visited_leaves_counter_profiling;
-unsigned int visited_series_counter_profiling;
-unsigned int calculated_series_counter_profiling;
+unsigned int leaf_counter_profiling;
+unsigned int sum2sax_counter_profiling;
+unsigned int l2square_counter_profiling;
 pthread_mutex_t *log_lock_profiling;
 unsigned int query_id_profiling;
 #endif
@@ -61,8 +61,8 @@ unsigned int query_id_profiling;
 #define CLOGGER_ID 0
 
 
-#define VALUE_MAX 1e11
-#define VALUE_MIN -1e11
+#define VALUE_MAX 1e7
+#define VALUE_MIN -1e7
 #define VALUE_EPSILON 1e-7
 
 typedef float Value;
@@ -78,13 +78,6 @@ typedef size_t ID;
 #define VALUE_GEQ(left, right) ((right) - (left) <= VALUE_EPSILON)
 #define VALUE_EQ(left, right) (VALUE_LEQ(left, right) && VALUE_GEQ(left, right))
 #define VALUE_NEQ(left, right) (VALUE_L(left, right) || VALUE_G(left, right))
-
-//#define VALUE_L(left, right) ((left) < (right))
-//#define VALUE_G(left, right) ((left) > (right))
-//#define VALUE_LEQ(left, right) ((left) <= (right))
-//#define VALUE_GEQ(left, right) ((left) >= (right) )
-//#define VALUE_EQ(left, right) ((left) == (right))
-//#define VALUE_NEQ(left, right) ((left) != (right))
 
 
 static inline int VALUE_COMPARE(void const *left, void const *right) {

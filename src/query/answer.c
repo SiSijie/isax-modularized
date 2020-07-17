@@ -59,10 +59,9 @@ int checkNUpdateBSF(Answer *answer, Value distance) {
 
 #ifdef PROFILING
     pthread_mutex_lock(log_lock_profiling);
-
-    clog_info(CLOG(CLOGGER_ID), "query %d - updated BSF = %f at %d calculated / %d visited", query_id_profiling,
-              distance, calculated_series_counter_profiling, visited_series_counter_profiling);
-
+    clog_info(CLOG(CLOGGER_ID), "query %d - updated BSF = %f at %d l2square / %d sum2sax / %d leaves",
+              query_id_profiling, distance, l2square_counter_profiling, sum2sax_counter_profiling,
+              leaf_counter_profiling);
     pthread_mutex_unlock(log_lock_profiling);
 #endif
 
@@ -100,8 +99,12 @@ void freeAnswer(Answer *answer) {
 
 
 void logAnswer(unsigned int query_id, Answer *answer) {
-    for (unsigned int i = 0; i < answer->size; ++i) {
-        clog_info(CLOG(CLOGGER_ID), "query %d - %d / %luNN = %f", query_id, i, answer->k, answer->distances[i]);
+    if (answer->size < 2) {
+        clog_info(CLOG(CLOGGER_ID), "query %d - %d / %luNN = %f", query_id, 0, answer->k, answer->distances[0]);
+    } else {
+        for (unsigned int i = 0; i < answer->size; ++i) {
+            clog_info(CLOG(CLOGGER_ID), "query %d - %d / %luNN = %f", query_id, i, answer->k, answer->distances[i]);
+        }
     }
 }
 
