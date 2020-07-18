@@ -397,9 +397,8 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
 
             if (config->exact_search && !(VALUE_EQ(local_bsf, 0) && answer->size == answer->k)) {
 #ifdef PROFILING
-                clog_info(CLOG(CLOGGER_ID), "query %d - %d l2square / %d sum2sax / %d in node",
-                          i + querySet->query_size, l2square_counter_profiling,
-                          sum2sax_counter_profiling, node->size);
+                clog_info(CLOG(CLOGGER_ID), "query %d - %d l2square / %d sum2sax",
+                          i + querySet->query_size, l2square_counter_profiling, sum2sax_counter_profiling);
 #endif
 #ifdef FINE_TIMING
                 clock_code = clock_gettime(CLK_ID, &start_timestamp);
@@ -427,7 +426,7 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
             }
         }
 #ifdef PROFILING
-        clog_info(CLOG(CLOGGER_ID), "query %d - %d l2square / %d sum2sax / %d leaves", i,
+        clog_info(CLOG(CLOGGER_ID), "query %d - %d l2square / %d sum2sax / %d entered", i,
                   l2square_counter_profiling, sum2sax_counter_profiling, leaf_counter_profiling);
 #endif
         logAnswer(i, answer);

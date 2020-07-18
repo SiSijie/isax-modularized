@@ -59,7 +59,7 @@ int checkNUpdateBSF(Answer *answer, Value distance) {
 
 #ifdef PROFILING
     pthread_mutex_lock(log_lock_profiling);
-    clog_info(CLOG(CLOGGER_ID), "query %d - updated BSF = %f at %d l2square / %d sum2sax / %d leaves",
+    clog_info(CLOG(CLOGGER_ID), "query %d - updated BSF = %f at %d l2square / %d sum2sax / %d entered",
               query_id_profiling, distance, l2square_counter_profiling, sum2sax_counter_profiling,
               leaf_counter_profiling);
     pthread_mutex_unlock(log_lock_profiling);
