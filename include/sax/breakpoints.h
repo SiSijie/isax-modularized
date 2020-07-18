@@ -58,7 +58,7 @@ void initializeM256IConstants();
 
 Value const *getNormalBreakpoints8(unsigned int num_segments);
 
-Value const *getAdhocBreakpoints8(Value const *summarizations, unsigned int size, unsigned int num_segments,
+Value const *getAdhocBreakpoints8(Value const *summarizations, size_t size, unsigned int num_segments,
                                   unsigned int num_threads);
 
 #endif //ISAX_BREAKPOINTS_H

@@ -56,49 +56,11 @@ unsigned int decideSplitSegmentByNextBit(Index *index, Node *parent, unsigned in
             if (local_difference < bsf_difference) {
                 segment_to_split = i;
                 bsf_difference = abs(local_difference);
-//#ifdef DEBUG
-//                clog_debug(CLOG(CLOGGER_ID), "index - difference of segment %d of mask %d = %d", i, next_bit,
-//                           local_difference);
-//#endif
             } else if (local_difference == bsf_difference && parent->masks[i] > parent->masks[segment_to_split]) {
                 segment_to_split = i;
-//#ifdef DEBUG
-//                clog_debug(CLOG(CLOGGER_ID), "index - difference of segment %d of mask %d = %d", i, next_bit,
-//                           local_difference);
-//#endif
             }
         }
     }
-
-//#ifdef DEBUG
-//    if (bsf_difference == parent->size) {
-//        for (unsigned int i = 0; i < num_segments; i += 8) {
-//            clog_debug(CLOG(CLOGGER_ID), "index - sax %d-%d (node) = %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d %d/%d",
-//                       i, i + 4, parent->sax[i], parent->masks[i], parent->sax[i + 1], parent->masks[i + 1],
-//                       parent->sax[i + 2], parent->masks[i + 2], parent->sax[i + 3], parent->masks[i + 3],
-//                       parent->sax[i + 4], parent->masks[i + 4], parent->sax[i + 5], parent->masks[i + 5],
-//                       parent->sax[i + 6], parent->masks[i + 6], parent->sax[i + 7], parent->masks[i + 7]);
-//        }
-//
-//        for (unsigned int i = 0; i < parent->size; ++i) {
-//            for (unsigned int j = 0; j < num_segments; j += 8) {
-//                size_t summarization_offset = index->sax_length * parent->ids[i] + j;
-//                clog_debug(CLOG(CLOGGER_ID), "index - summarizations %d-%d (series %d) = %f %f %f %f %f %f %f %f", j, j + 8, i,
-//                           index->summarizations[summarization_offset], index->summarizations[summarization_offset + 1],
-//                           index->summarizations[summarization_offset + 2], index->summarizations[summarization_offset + 3],
-//                           index->summarizations[summarization_offset + 4], index->summarizations[summarization_offset + 5],
-//                           index->summarizations[summarization_offset + 6], index->summarizations[summarization_offset + 7]);
-//
-//                size_t sax_offset = index->sax_length * parent->ids[i] + j;
-//                clog_debug(CLOG(CLOGGER_ID), "index - sax %d-%d (series %d) = %d %d %d %d %d %d %d %d", j, j + 8, i,
-//                           index->saxs[sax_offset], index->saxs[sax_offset + 1],
-//                           index->saxs[sax_offset + 2], index->saxs[sax_offset + 3],
-//                           index->saxs[sax_offset + 4], index->saxs[sax_offset + 5],
-//                           index->saxs[sax_offset + 6], index->saxs[sax_offset + 7]);
-//            }
-//        }
-//    }
-//#endif
 
     return segment_to_split;
 }
@@ -106,22 +68,22 @@ unsigned int decideSplitSegmentByNextBit(Index *index, Node *parent, unsigned in
 
 unsigned int decideSplitSegmentByDistribution(Index *index, Node *parent, unsigned int num_segments) {
     unsigned int segment_to_split = -1;
-    double bsf = VALUE_MAX, local_bsf, tmp, mean, stdx3;
+    double bsf = VALUE_MAX, local_bsf, tmp, mean, std;
     SAXMask next_mask;
 
     for (unsigned int i = 0; i < num_segments; ++i) {
         if (parent->masks[i] ^ 1u) {
             next_mask = parent->masks[i] >> 1u;
-            mean = 0, stdx3 = 0;
+            mean = 0, std = 0;
 
             for (unsigned int j = 0; j < parent->size; ++j) {
                 tmp = index->summarizations[index->sax_length * parent->ids[j] + i];
                 mean += tmp;
-                stdx3 += tmp * tmp;
+                std += tmp * tmp;
             }
 
             mean /= parent->size;
-            stdx3 = 3 * sqrt(stdx3 / parent->size - mean * mean);
+            std = sqrt(std / parent->size - mean * mean);
 
             tmp = index->breakpoints[OFFSETS_BY_SEGMENTS[i] + OFFSETS_BY_MASK[next_mask] +
                                      (((unsigned int) parent->sax[i] >> SHIFTS_BY_MASK[next_mask]) | 1u)];
@@ -129,25 +91,24 @@ unsigned int decideSplitSegmentByDistribution(Index *index, Node *parent, unsign
 //            clog_debug(CLOG(CLOGGER_ID), "index - mean/3*std/breakpoint(%d/%d@%d+%d+%d) of s%d(%d/%d) = %f/%f/%f",
 //                       next_mask, ((unsigned int) parent->sax[i] >> SHIFTS_BY_MASK[next_mask]),
 //                       OFFSETS_BY_SEGMENTS[i], OFFSETS_BY_MASK[next_mask],
-//                       (((unsigned int) parent->sax[i] >> SHIFTS_BY_MASK[next_mask]) | 1u), i, parent->sax[i],
-//                       parent->masks[i], mean, std, tmp);
+//                       ((unsigned int) parent->sax[i] >> SHIFTS_BY_MASK[next_mask]) | 1u,
+//                       i, parent->sax[i], parent->masks[i], mean, std, tmp);
 //#endif
-            if (VALUE_GEQ(tmp, mean - stdx3) && VALUE_LEQ(tmp, mean + stdx3)) {
-                local_bsf = fabs(tmp - mean);
-                if (VALUE_L(local_bsf, bsf)) {
-                    bsf = local_bsf;
-                    segment_to_split = i;
+
+            local_bsf = fabs(tmp - mean) / std;
+            if (VALUE_L(local_bsf, bsf)) {
+                bsf = local_bsf;
+                segment_to_split = i;
 //#ifdef DEBUG
-//                    clog_debug(CLOG(CLOGGER_ID), "index - mean2breakpoint of s%d (%d / %d-->%d) = %f",
-//                               i, parent->sax[i], parent->masks[i], next_mask, bsf);
+//                clog_debug(CLOG(CLOGGER_ID), "index - (<) mean2breakpoint of s%d (%d / %d-->%d) = %f",
+//                           i, parent->sax[i], parent->masks[i], next_mask, bsf);
 //#endif
-                } else if (VALUE_EQ(local_bsf, bsf) && parent->masks[i] > parent->masks[segment_to_split]) {
-                    segment_to_split = i;
+            } else if (VALUE_EQ(local_bsf, bsf) && parent->masks[i] > parent->masks[segment_to_split]) {
+                segment_to_split = i;
 //#ifdef DEBUG
-//                    clog_debug(CLOG(CLOGGER_ID), "index - mean2breakpoint of s%d (%d / %d-->%d) = %f",
-//                               i, parent->sax[i], parent->masks[i], next_mask, bsf);
+//                clog_debug(CLOG(CLOGGER_ID), "index - (=) mean2breakpoint of s%d (%d / %d-->%d) = %f",
+//                           i, parent->sax[i], parent->masks[i], next_mask, bsf);
 //#endif
-                }
             }
         }
     }

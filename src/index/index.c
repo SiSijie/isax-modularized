@@ -31,7 +31,6 @@ unsigned int rootSAX2ID(SAXWord const *saxs, unsigned int num_segments, unsigned
 
 
 Index *initializeIndex(Config const *config) {
-    // TODO figure out why M256I_1 cannot use as global constant
     initializeM256IConstants();
 
     Index *index = malloc(sizeof(Index));
