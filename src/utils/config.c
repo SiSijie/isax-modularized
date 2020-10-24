@@ -28,11 +28,12 @@ const struct option longopts[] = {
         {"split_by_summarizations",         no_argument,       0,    20},
         {"scale_factor",                    required_argument, 0,    21},
         {"skipped_cores",                    required_argument, 0,    22},
+        {"numa_id",                    required_argument, 0,    23},
         {NULL,                              no_argument,       NULL, 0}
 };
 
 
-int initializeThreads(Config *config, unsigned int cpu_cores, unsigned int numa_cores, unsigned int skipped_cores) {
+int initializeThreads(Config *config, unsigned int cpu_cores, unsigned int numa_cores, unsigned int skipped_cores, unsigned int numa_id) {
     config->max_threads = cpu_cores;
 
     cpu_set_t mask, get;
@@ -43,7 +44,7 @@ int initializeThreads(Config *config, unsigned int cpu_cores, unsigned int numa_
     // for andromache(Intel(R) Xeon(R) Gold 6134 CPU @ 3.20GHz), system(cpu)-dependent, check by lscpu
     unsigned int step = 3 - numa_cores;
     for (unsigned int i = 0; i < cpu_cores; ++i) {
-        CPU_SET((skipped_cores + i) * step, &mask);
+        CPU_SET(numa_id + (skipped_cores + i) * step, &mask);
     }
 
     if (pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask) != 0) {
@@ -90,6 +91,7 @@ Config *initializeConfig(int argc, char **argv) {
 
     config->cpu_cores = 1;
     config->numa_cores = 1;
+    config->numa_id = 0;
     config->skipped_cores = 0;
 
     char *string_parts;
@@ -162,6 +164,9 @@ Config *initializeConfig(int argc, char **argv) {
             case 22:
                 config->skipped_cores = (unsigned int) strtol(optarg, &string_parts, 10);
                 break;
+            case 23:
+                config->numa_id = (unsigned int) strtol(optarg, &string_parts, 10);
+                break;
             default:
                 exit(EXIT_FAILURE);
         }
@@ -184,10 +189,11 @@ Config *initializeConfig(int argc, char **argv) {
     }
 
     assert(config->cpu_cores > 0 && config->numa_cores > 0 &&
+           (config->numa_id == 0 || config->numa_id == 1) &&
            ((config->numa_cores == 2 && config->skipped_cores + config->cpu_cores <= 32) ||
             (config->numa_cores == 1 && config->skipped_cores + config->cpu_cores <= 16)));
 
-    initializeThreads(config, config->cpu_cores, config->numa_cores, config->skipped_cores);
+    initializeThreads(config, config->cpu_cores, config->numa_cores, config->skipped_cores, config->numa_id);
     return config;
 }
 
@@ -218,5 +224,6 @@ void logConfig(Config const *config) {
     clog_info(CLOG(CLOGGER_ID), "config - cpu_cores = %d", config->cpu_cores);
     clog_info(CLOG(CLOGGER_ID), "config - numa_cores = %d", config->numa_cores);
     clog_info(CLOG(CLOGGER_ID), "config - skipped_cores = %d", config->skipped_cores);
+    clog_info(CLOG(CLOGGER_ID), "config - numa_id = %d", config->numa_id);
     clog_info(CLOG(CLOGGER_ID), "config - index_block_size = %u", config->index_block_size);
 }

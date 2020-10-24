@@ -49,6 +49,7 @@ typedef struct Config {
     unsigned int numa_cores;
     unsigned int max_threads;
     unsigned int skipped_cores;
+    unsigned int numa_id;
 
     unsigned int index_block_size;
 
