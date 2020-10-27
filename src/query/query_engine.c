@@ -25,6 +25,8 @@ typedef struct QueryCache {
     Value scale_factor;
 
     bool sort_leaves;
+
+    unsigned int series_limitations;
 } QueryCache;
 
 
@@ -56,6 +58,8 @@ void *queryThread(void *cache) {
     ID *shared_index_id = queryCache->shared_leaf_id;
     bool sort_leaves = queryCache->sort_leaves;
 
+    unsigned int series_limitations = queryCache->series_limitations;
+
     Value const *current_series;
     SAXWord const *current_sax;
     Value local_bsf, local_l2Square, local_l2SquareSAX;
@@ -78,9 +82,13 @@ void *queryThread(void *cache) {
             // TODO correctness-risks traded off for efficiency
             // only using local_bsf suffers from that approximate nearest neighbours < k and never updated
             // could use VALUE_G instead of VALUE_GEQ if not for efficiency
-            if (VALUE_G(local_bsf, leaf_distances[leaf_id])) {
+            if (VALUE_G(local_bsf, leaf_distances[leaf_id]) || series_limitations != 0) {
 #ifdef PROFILING
                 __sync_fetch_and_add(&leaf_counter_profiling, 1);
+
+                if (series_limitations != 0 && sum2sax_counter_profiling > series_limitations) {
+                    return NULL;
+                }
 #endif
                 leaf_start_id = leaves[leaf_id]->start_id;
 
@@ -410,6 +418,7 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
 
                 for (unsigned int j = 0; j < max_threads; ++j) {
                     queryCache[j].block_size = query_block_size;
+                    queryCache[j].series_limitations = config->series_limitations;
 
                     pthread_create(&query_threads[j], NULL, queryThread, (void *) &queryCache[j]);
                 }

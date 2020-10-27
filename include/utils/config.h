@@ -53,6 +53,8 @@ typedef struct Config {
 
     unsigned int index_block_size;
 
+    unsigned int series_limitations;
+
     Value scale_factor;
 } Config;
 
