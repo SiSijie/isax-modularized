@@ -56,17 +56,17 @@ void *piecewiseAggregateThread(void *cache) {
              value_counter = 0, segment_sum = 0, segment_id = 0;
              pt_value < values + series_length * stop_id; ++pt_value) {
             segment_sum += *pt_value;
-
             value_counter += 1;
+
 //            if (value_counter == num_values_in_segment) {
             if (value_counter == segment_lengths[segment_id]) {
 //                *pt_paa = segment_sum / float_num_values_in_segment;
                 *pt_paa = segment_sum / segment_length_floats[segment_id];
 
-                pt_paa += 1;
                 value_counter = 0;
                 segment_sum = 0;
 
+                pt_paa += 1;
                 segment_id = (segment_id + 1) % paa_length;
             }
         }
@@ -85,11 +85,12 @@ Value *piecewiseAggregate(Value const *values, ID size, unsigned int series_leng
         segment_lengths[i] = series_length / summarization_length;
     }
 
-    unsigned int remainder = series_length % summarization_length;
-    if (remainder > 0) {
-        for (unsigned int i = 0; i < remainder; ++i) {
-            segment_lengths[i] += 1;
-        }
+    for (unsigned int i = 0; i < series_length % summarization_length; ++i) {
+        segment_lengths[i] += 1;
+    }
+
+    for (unsigned int i = 0; i < summarization_length; ++i) {
+        segment_length_floats[i] = (Value) segment_lengths[i];
     }
 
 #ifdef PROFILING
@@ -103,10 +104,6 @@ Value *piecewiseAggregate(Value const *values, ID size, unsigned int series_leng
         clog_info(CLOG(CLOGGER_ID), "cannot assign %d to %d (%d)", series_length, summarization_length, sum);
     }
 #endif
-
-    for (unsigned int i = 0; i < summarization_length; ++i) {
-        segment_length_floats[i] = (float) segment_lengths[i];
-    }
 
     Value *paas = aligned_alloc(256, sizeof(Value) * summarization_length * size);
 
@@ -123,7 +120,9 @@ Value *piecewiseAggregate(Value const *values, ID size, unsigned int series_leng
         paaCaches[i].size = size;
         paaCaches[i].series_length = series_length;
         paaCaches[i].paa_length = summarization_length;
+
         paaCaches[i].segment_lengths = segment_lengths;
+        paaCaches[i].segment_length_floats = segment_length_floats;
 
         paaCaches[i].shared_processed_counter = &shared_processed_counter;
         paaCaches[i].block_size = block_size;
