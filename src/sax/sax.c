@@ -18,17 +18,19 @@ typedef struct SAXCache {
 } SAXCache;
 
 
-void *summarizations2SAXs8Thread(void *cache) {
+void *summarizations2SAX16Thread(void *cache) {
     SAXCache *saxCache = (SAXCache *) cache;
     ID *shared_processed_counter = saxCache->shared_processed_counter;
     unsigned int block_size = saxCache->block_size;
     ID size = saxCache->size;
-    unsigned int sax_length = saxCache->sax_length;
     Value const *summarizations = saxCache->summarizations;
     Value const *breakpoints = saxCache->breakpoints;
     SAXWord *saxs = saxCache->saxs;
 
-    ID start_id, stop_id, current_id, current_segment;
+    unsigned int sax_length = saxCache->sax_length;
+
+    ID start_id, stop_id;
+    ID current_sax_id, current_summarization_id, current_segment;
 
     while ((start_id = __sync_fetch_and_add(shared_processed_counter, block_size)) < size) {
         stop_id = start_id + block_size;
@@ -36,12 +38,14 @@ void *summarizations2SAXs8Thread(void *cache) {
             stop_id = size;
         }
 
-        for (current_id = sax_length * start_id; current_id < sax_length * stop_id; current_id += sax_length) {
+        for (current_sax_id = SAX_SIMD_ALIGNED_LENGTH * start_id, current_summarization_id = sax_length * start_id;
+             current_sax_id < SAX_SIMD_ALIGNED_LENGTH * stop_id;
+             current_sax_id += SAX_SIMD_ALIGNED_LENGTH, current_summarization_id += sax_length) {
             for (current_segment = 0; current_segment < sax_length; ++current_segment) {
-                saxs[current_id + current_segment] = bSearchFloor(summarizations[current_id + current_segment],
-                                                                  breakpoints + OFFSETS_BY_SEGMENTS[current_segment] +
-                                                                  OFFSETS_BY_CARDINALITY[7],
-                                                                  0, 256);
+                saxs[current_sax_id + current_segment] = bSearchFloor(
+                        summarizations[current_summarization_id + current_segment],
+                        breakpoints + OFFSETS_BY_SEGMENTS[current_segment] + OFFSETS_BY_CARDINALITY[7],
+                        0, 256);
             }
         }
     }
@@ -51,9 +55,9 @@ void *summarizations2SAXs8Thread(void *cache) {
 
 
 SAXWord *
-summarizations2SAXs(Value const *summarizations, Value const *breakpoints, ID size, unsigned int sax_length,
-                    unsigned int sax_cardinality, unsigned int num_threads) {
-    SAXWord *saxs = aligned_alloc(256, sizeof(SAXWord) * sax_length * size);
+summarizations2SAX16(Value const *summarizations, Value const *breakpoints, ID size, unsigned int sax_length,
+                     unsigned int sax_cardinality, unsigned int num_threads) {
+    SAXWord *saxs = aligned_alloc(128, sizeof(SAXWord) * SAX_SIMD_ALIGNED_LENGTH * size);
 
     pthread_t threads[num_threads];
     SAXCache saxCache[num_threads];
@@ -71,7 +75,7 @@ summarizations2SAXs(Value const *summarizations, Value const *breakpoints, ID si
         saxCache[i].shared_processed_counter = &shared_processed_counter;
         saxCache[i].block_size = block_size;
 
-        pthread_create(&threads[i], NULL, summarizations2SAXs8Thread, (void *) &saxCache[i]);
+        pthread_create(&threads[i], NULL, summarizations2SAX16Thread, (void *) &saxCache[i]);
     }
 
     for (unsigned int i = 0; i < num_threads; ++i) {
@@ -154,7 +158,7 @@ Value l2SquareValue2SAXByMaskSIMD(unsigned int sax_length, Value const *summariz
     __m256 m256_l2square = _mm256_mul_ps(m256_l1, m256_l1);
 
     if (sax_length == 16) {
-        m256_summarizations = _mm256_load_ps(summarizations + 8);
+        m256_summarizations = _mm256_loadu_ps(summarizations + 8);
         m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 1));
 
         m256i_mask_indices = _mm256_load_si256(m256i_masks + 1);
@@ -200,7 +204,8 @@ Value l2SquareValue2SAXByMaskSIMD(unsigned int sax_length, Value const *summariz
         if (VALUE_L(summarizations[i], *current_breakpoints)) {
             distance += (*current_breakpoints - summarizations[i]) * (*current_breakpoints - summarizations[i]);
         } else if (VALUE_G(summarizations[i], *(current_breakpoints + 1))) {
-            distance += (summarizations[i] - *(current_breakpoints + 1)) * (summarizations[i] - *(current_breakpoints + 1));
+            distance +=
+                    (summarizations[i] - *(current_breakpoints + 1)) * (summarizations[i] - *(current_breakpoints + 1));
         }
     }
 
@@ -212,7 +217,7 @@ Value l2SquareValue2SAX8SIMD(unsigned int sax_length, Value const *summarization
                              Value const *breakpoints, Value scale_factor, Value *cache) {
     __m256i m256i_sax_packed = _mm256_cvtepu8_epi16(_mm_load_si128((__m128i const *) sax));
 
-    __m256 m256_summarizations = _mm256_load_ps(summarizations);
+    __m256 m256_summarizations = _mm256_loadu_ps(summarizations);
     __m256i m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 0));
 
     __m256i m256i_floor_indices = _mm256_add_epi32(m256i_sax, M256I_BREAKPOINTS8_OFFSETS_0_7);
@@ -233,7 +238,7 @@ Value l2SquareValue2SAX8SIMD(unsigned int sax_length, Value const *summarization
     __m256 m256_l2square = _mm256_mul_ps(m256_l1, m256_l1);
 
     if (sax_length == 16) {
-        m256_summarizations = _mm256_load_ps(summarizations + 8);
+        m256_summarizations = _mm256_loadu_ps(summarizations + 8);
         m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 1));
 
         m256i_floor_indices = _mm256_add_epi32(m256i_sax, M256I_BREAKPOINTS8_OFFSETS_8_15);
@@ -272,7 +277,8 @@ Value l2SquareValue2SAX8SIMD(unsigned int sax_length, Value const *summarization
         if (VALUE_L(summarizations[i], *current_breakpoints)) {
             distance += (*current_breakpoints - summarizations[i]) * (*current_breakpoints - summarizations[i]);
         } else if (VALUE_G(summarizations[i], *(current_breakpoints + 1))) {
-            distance += (summarizations[i] - *(current_breakpoints + 1)) * (summarizations[i] - *(current_breakpoints + 1));
+            distance +=
+                    (summarizations[i] - *(current_breakpoints + 1)) * (summarizations[i] - *(current_breakpoints + 1));
         }
     }
 

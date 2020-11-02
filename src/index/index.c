@@ -6,7 +6,7 @@
 
 
 SAXWord *rootID2SAX(unsigned int id, unsigned int num_segments, unsigned int cardinality) {
-    SAXWord *sax = aligned_alloc(128, sizeof(SAXWord) * num_segments);
+    SAXWord *sax = aligned_alloc(128, sizeof(SAXWord) * SAX_SIMD_ALIGNED_LENGTH);
     unsigned int offset = cardinality - 1;
 
     for (unsigned int i = 1; i <= num_segments; ++i) {
@@ -53,7 +53,7 @@ Index *initializeIndex(Config const *config) {
 
     index->roots_size = 1u << config->sax_length;
     index->roots = malloc(sizeof(Node *) * index->roots_size);
-    SAXMask *root_masks = aligned_alloc(256, sizeof(SAXMask) * config->sax_length);
+    SAXMask *root_masks = aligned_alloc(128, sizeof(SAXMask) * config->sax_length);
     for (unsigned int i = 0; i < config->sax_length; ++i) {
         root_masks[i] = (SAXMask) (1u << (config->sax_cardinality - 1));
     }
@@ -129,8 +129,8 @@ Index *initializeIndex(Config const *config) {
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
-    index->saxs = (SAXWord const *) summarizations2SAXs(summarizations, index->breakpoints, index->database_size,
-                                                        index->sax_length, index->sax_cardinality, config->max_threads);
+    index->saxs = (SAXWord const *) summarizations2SAX16(summarizations, index->breakpoints, index->database_size,
+                                                         index->sax_length, index->sax_cardinality, config->max_threads);
 
 #ifdef FINE_TIMING
     clock_code = clock_gettime(CLK_ID, &stop_timestamp);

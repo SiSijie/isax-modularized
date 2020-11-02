@@ -93,9 +93,9 @@ void *queryThread(void *cache) {
                 leaf_start_id = leaves[leaf_id]->start_id;
 
                 for (current_series = values + series_length * leaf_start_id,
-                             current_sax = saxs + sax_length * leaf_start_id;
+                             current_sax = saxs + SAX_SIMD_ALIGNED_LENGTH * leaf_start_id;
                      current_series < values + series_length * (leaf_start_id + leaves[leaf_id]->size);
-                     current_series += series_length, current_sax += sax_length) {
+                     current_series += series_length, current_sax += SAX_SIMD_ALIGNED_LENGTH) {
 #ifdef PROFILING
                     __sync_fetch_and_add(&sum2sax_counter_profiling, 1);
 #endif
@@ -257,7 +257,7 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
     for (unsigned int i = 0; i < querySet->query_size; ++i) {
         query_values = querySet->values + series_length * i;
         query_summarization = querySet->summarizations + sax_length * i;
-        query_sax = querySet->saxs + sax_length * i;
+        query_sax = querySet->saxs + SAX_SIMD_ALIGNED_LENGTH * i;
 
 #ifdef PROFILING
         query_id_profiling = i;
@@ -280,15 +280,14 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
             leaf_counter_profiling += 1;
 #endif
             outer_current_series = values + series_length * node->start_id;
-            outer_current_sax = saxs + sax_length * node->start_id;
+            outer_current_sax = saxs + SAX_SIMD_ALIGNED_LENGTH * node->start_id;
 
             while (outer_current_series < values + series_length * (node->start_id + node->size)) {
 #ifdef PROFILING
                 sum2sax_counter_profiling += 1;
 #endif
                 local_l2SquareSAX8 = l2SquareValue2SAX8SIMD(sax_length, query_summarization, outer_current_sax,
-                                                            breakpoints,
-                                                            scale_factor, local_m256_fetched_cache);
+                                                            breakpoints, scale_factor, local_m256_fetched_cache);
 
                 if (VALUE_G(local_bsf, local_l2SquareSAX8)) {
 #ifdef PROFILING
@@ -304,7 +303,7 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
                 }
 
                 outer_current_series += series_length;
-                outer_current_sax += sax_length;
+                outer_current_sax += SAX_SIMD_ALIGNED_LENGTH;
             }
         } else {
             clog_info(CLOG(CLOGGER_ID), "query %d - no resident node", i);
@@ -358,7 +357,7 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
                 leaf_distances[leaf_indices[0]] = VALUE_MAX;
 
                 outer_current_series = values + series_length * node->start_id;
-                outer_current_sax = saxs + sax_length * node->start_id;
+                outer_current_sax = saxs + SAX_SIMD_ALIGNED_LENGTH * node->start_id;
 
                 while (outer_current_series < values + series_length * (node->start_id + node->size)) {
 #ifdef PROFILING
@@ -381,7 +380,7 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
                     }
 
                     outer_current_series += series_length;
-                    outer_current_sax += sax_length;
+                    outer_current_sax += SAX_SIMD_ALIGNED_LENGTH;
                 }
 
                 if (config->sort_leaves) {

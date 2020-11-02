@@ -58,9 +58,9 @@ QuerySet *initializeQuery(Config const *config, Index const *index) {
     clock_code = clock_gettime(CLK_ID, &start_timestamp);
 #endif
 
-    queries->saxs = (SAXWord const *) summarizations2SAXs(queries->summarizations, index->breakpoints,
-                                                          queries->query_size, config->sax_length,
-                                                          config->sax_cardinality, config->max_threads);
+    queries->saxs = (SAXWord const *) summarizations2SAX16(queries->summarizations, index->breakpoints,
+                                                           queries->query_size, config->sax_length,
+                                                           config->sax_cardinality, config->max_threads);
 
 #ifdef FINE_TIMING
     clock_code = clock_gettime(CLK_ID, &stop_timestamp);

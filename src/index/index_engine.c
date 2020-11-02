@@ -45,7 +45,7 @@ int decideSplitSegmentByNextBit(Index *index, Node *parent, unsigned int num_seg
             next_bit = parent->masks[i] >> 1u;
 
             for (unsigned int j = 0; j < parent->size; ++j) {
-                if (index->saxs[index->sax_length * parent->ids[j] + i] & next_bit) {
+                if (index->saxs[SAX_SIMD_ALIGNED_LENGTH * parent->ids[j] + i] & next_bit) {
                     local_difference += 1;
                 } else {
                     local_difference -= 1;
@@ -107,7 +107,7 @@ int decideSplitSegmentByDistribution(Index *index, Node *parent, unsigned int nu
             mean = 0, std = 0;
 
             for (unsigned int j = 0; j < parent->size; ++j) {
-                tmp = index->summarizations[index->sax_length * parent->ids[j] + i];
+                tmp = index->summarizations[num_segments * parent->ids[j] + i];
                 mean += tmp;
                 std += tmp * tmp;
             }
@@ -165,7 +165,7 @@ void splitNode(Index *index, Node *parent, unsigned int num_segments, bool split
     memcpy(child_masks, parent->masks, sizeof(SAXMask) * num_segments);
     child_masks[segment_to_split] >>= 1u;
 
-    SAXWord *right_sax = aligned_alloc(128, sizeof(SAXWord) * num_segments);
+    SAXWord *right_sax = aligned_alloc(128, sizeof(SAXWord) * SAX_SIMD_ALIGNED_LENGTH);
     memcpy(right_sax, parent->sax, sizeof(SAXWord) * num_segments);
     right_sax[segment_to_split] |= child_masks[segment_to_split];
 
@@ -173,7 +173,7 @@ void splitNode(Index *index, Node *parent, unsigned int num_segments, bool split
     parent->right = initializeNode(right_sax, child_masks);
 
     for (unsigned int i = 0; i < parent->size; ++i) {
-        if (index->saxs[index->sax_length * parent->ids[i] + segment_to_split] & child_masks[segment_to_split]) {
+        if (index->saxs[SAX_SIMD_ALIGNED_LENGTH * parent->ids[i] + segment_to_split] & child_masks[segment_to_split]) {
             insertNode(parent->right, parent->ids[i], parent->capacity, parent->capacity);
         } else {
             insertNode(parent->left, parent->ids[i], parent->capacity, parent->capacity);
@@ -206,7 +206,7 @@ void *buildIndexThread(void *cache) {
         }
 
         for (ID i = local_start_id; i < local_stop_id; ++i) {
-            sax = index->saxs + index->sax_length * i;
+            sax = index->saxs + SAX_SIMD_ALIGNED_LENGTH * i;
             node = index->roots[rootSAX2ID(sax, index->sax_length, index->sax_cardinality)];
 
             pthread_mutex_lock(node->lock);
@@ -294,10 +294,10 @@ void fetchPermutation(Node *node, ssize_t *permutation, ID *counter) {
 
 void permute(Value *values, SAXWord *saxs, ssize_t *permutation, ssize_t size, unsigned int series_length,
              unsigned int sax_length) {
-    unsigned int series_bytes = sizeof(Value) * series_length, sax_bytes = sizeof(SAXWord) * sax_length;
+    unsigned int series_bytes = sizeof(Value) * series_length, sax_bytes = sizeof(SAXWord) * SAX_SIMD_ALIGNED_LENGTH;
 
-    Value *values_cache = aligned_alloc(64, series_bytes);
-    SAXWord *sax_cache = aligned_alloc(64, sax_bytes);
+    Value *values_cache = aligned_alloc(256, series_bytes);
+    SAXWord *sax_cache = aligned_alloc(128, sax_bytes);
 
     ssize_t tmp;
     for (ID next, i = 0; i < size; ++i) {
@@ -308,9 +308,9 @@ void permute(Value *values, SAXWord *saxs, ssize_t *permutation, ssize_t size, u
             memcpy(values + series_length * i, values + series_length * permutation[next], series_bytes);
             memcpy(values + series_length * permutation[next], values_cache, series_bytes);
 
-            memcpy(sax_cache, saxs + sax_length * i, sax_bytes);
-            memcpy(saxs + sax_length * i, saxs + sax_length * permutation[next], sax_bytes);
-            memcpy(saxs + sax_length * permutation[next], sax_cache, sax_bytes);
+            memcpy(sax_cache, saxs + SAX_SIMD_ALIGNED_LENGTH * i, sax_bytes);
+            memcpy(saxs + SAX_SIMD_ALIGNED_LENGTH * i, saxs + SAX_SIMD_ALIGNED_LENGTH * permutation[next], sax_bytes);
+            memcpy(saxs + SAX_SIMD_ALIGNED_LENGTH * permutation[next], sax_cache, sax_bytes);
 
             tmp = permutation[next];
             permutation[next] -= size;
@@ -333,7 +333,7 @@ void squeezeNode(Node *node, Index *index, bool *segment_flags) {
             node->squeezed_masks[i] = 1u;
         }
 
-        memcpy(node->sax, index->saxs + index->sax_length * node->start_id, sizeof(SAXWord) * index->sax_length);
+        memcpy(node->sax, index->saxs + SAX_SIMD_ALIGNED_LENGTH * node->start_id, sizeof(SAXWord) * SAX_SIMD_ALIGNED_LENGTH);
 
         if (node->size > 1) {
             int segments_nonsqueezable = 0;
@@ -346,14 +346,14 @@ void squeezeNode(Node *node, Index *index, bool *segment_flags) {
                 }
             }
 
-            for (ID i = index->sax_length * (node->start_id + 1);
-                 (i < index->sax_length * (node->start_id + node->size)) &&
-                 (segments_nonsqueezable < index->sax_length);
-                 i += index->sax_length) {
+            for (ID i = SAX_SIMD_ALIGNED_LENGTH * (node->start_id + 1);
+                 (i < SAX_SIMD_ALIGNED_LENGTH * (node->start_id + node->size)) && (segments_nonsqueezable < index->sax_length);
+                 i += SAX_SIMD_ALIGNED_LENGTH) {
                 for (unsigned j = 0; j < index->sax_length; ++j) {
                     if (segment_flags[j]) {
                         for (unsigned int k = BITS_BY_MASK[node->masks[j]] + 1;
-                             k < BITS_BY_MASK[node->squeezed_masks[j]]; ++k) {
+                             k < BITS_BY_MASK[node->squeezed_masks[j]];
+                             ++k) {
                             if (((unsigned) index->saxs[i + j] ^ (unsigned) node->sax[j]) & MASKS_BY_BITS[k]) {
                                 node->squeezed_masks[j] = MASKS_BY_BITS[k - 1];
 

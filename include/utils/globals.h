@@ -61,6 +61,8 @@ unsigned int query_id_profiling;
 #define CLOGGER_ID 0
 
 
+#define SAX_SIMD_ALIGNED_LENGTH 16
+
 #define VALUE_MAX 1e7
 #define VALUE_MIN -1e7
 #define VALUE_EPSILON 1e-7
@@ -68,6 +70,7 @@ unsigned int query_id_profiling;
 typedef float Value;
 // TODO only supports sax_cardinality <= 8
 typedef unsigned char SAXWord;
+// TODO Why SAXMask is int? Why not char?
 typedef unsigned int SAXMask;
 typedef size_t ID;
 

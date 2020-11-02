@@ -134,11 +134,12 @@ void *getAdhocBreakpoints8Thread(void *cache) {
 }
 
 
-void profileBreakpoints(Value const *breakpoints) {
-    for (unsigned int i = 0; i < 8; ++i) {
+void profileBreakpoints(Value const *breakpoints, unsigned int num_segments) {
+    for (unsigned int i = 0; i < num_segments; ++i) {
         Value sum = 0, sum_square = 0;
         for (unsigned int j = OFFSETS_BY_SEGMENTS[i] + OFFSETS_BY_CARDINALITY[7] + 1;
-             j < OFFSETS_BY_SEGMENTS[i] + OFFSETS_BY_CARDINALITY[8] - 1; ++j) {
+             j < OFFSETS_BY_SEGMENTS[i] + OFFSETS_BY_CARDINALITY[8] - 1;
+             ++j) {
             sum += breakpoints[j];
             sum_square += breakpoints[j] * breakpoints[j];
         }
@@ -176,7 +177,7 @@ Value const *getAdhocBreakpoints8(Value const *summarizations, size_t size, unsi
     }
 
 #ifdef PROFILING
-    profileBreakpoints(breakpoints);
+    profileBreakpoints(breakpoints, num_segments);
 #endif
 
     return breakpoints;
@@ -192,7 +193,7 @@ Value const *getNormalBreakpoints8(unsigned int num_segments) {
     }
 
 #ifdef PROFILING
-    profileBreakpoints(breakpoints);
+    profileBreakpoints(breakpoints, num_segments);
 #endif
 
     return breakpoints;

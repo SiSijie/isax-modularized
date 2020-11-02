@@ -38,7 +38,7 @@ static SAXMask const MASKS_BY_BITS[8] = {1u << 7u, 1u << 6u, 1u << 5u, 1u << 4u,
 
 
 SAXWord *
-summarizations2SAXs(Value const *summarizations, Value const *breakpoints, ID size, unsigned int sax_length,
+summarizations2SAX16(Value const *summarizations, Value const *breakpoints, ID size, unsigned int sax_length,
                     unsigned int sax_cardinality, unsigned int num_threads);
 
 Value l2SquareValue2SAXByMask(unsigned int sax_length, Value const *summarizations, SAXWord const *sax,
