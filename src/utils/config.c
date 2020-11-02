@@ -27,14 +27,16 @@ const struct option longopts[] = {
         {"sort_leaves",                     no_argument,       0,    19},
         {"split_by_summarizations",         no_argument,       0,    20},
         {"scale_factor",                    required_argument, 0,    21},
-        {"skipped_cores",                    required_argument, 0,    22},
-        {"numa_id",                    required_argument, 0,    23},
-        {"series_limitations",                    required_argument, 0,    24},
+        {"skipped_cores",                   required_argument, 0,    22},
+        {"numa_id",                         required_argument, 0,    23},
+        {"series_limitations",              required_argument, 0,    24},
+        {"leaf_compactness",                no_argument,       0,    25},
         {NULL,                              no_argument,       NULL, 0}
 };
 
 
-int initializeThreads(Config *config, unsigned int cpu_cores, unsigned int numa_cores, unsigned int skipped_cores, unsigned int numa_id) {
+int initializeThreads(Config *config, unsigned int cpu_cores, unsigned int numa_cores, unsigned int skipped_cores,
+                      unsigned int numa_id) {
     config->max_threads = cpu_cores;
 
     cpu_set_t mask, get;
@@ -96,6 +98,8 @@ Config *initializeConfig(int argc, char **argv) {
     config->skipped_cores = 0;
 
     config->series_limitations = 0;
+
+    config->leaf_compactness = false;
 
     char *string_parts;
     int opt, longindex = 0;
@@ -172,6 +176,9 @@ Config *initializeConfig(int argc, char **argv) {
                 break;
             case 24:
                 config->series_limitations = (unsigned int) strtol(optarg, &string_parts, 10);
+                break;
+            case 25:
+                config->leaf_compactness = true;
                 break;
             default:
                 exit(EXIT_FAILURE);

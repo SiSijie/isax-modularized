@@ -407,6 +407,11 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
 #ifdef PROFILING
                 clog_info(CLOG(CLOGGER_ID), "query %d - %d l2square / %d sum2sax",
                           i + querySet->query_size, l2square_counter_profiling, sum2sax_counter_profiling);
+
+                if (config->leaf_compactness) {
+                    clog_info(CLOG(CLOGGER_ID), "query %d - node size %d compactness %f",
+                              i + querySet->query_size, node->size, node->compactness);
+                }
 #endif
 #ifdef FINE_TIMING
                 clock_code = clock_gettime(CLK_ID, &start_timestamp);

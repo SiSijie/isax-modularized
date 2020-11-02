@@ -12,6 +12,7 @@
 
 #include "globals.h"
 #include "clog.h"
+#include "distance.h"
 
 typedef struct Node {
     pthread_mutex_t *lock;
@@ -34,6 +35,8 @@ typedef struct Node {
 Node *initializeNode(SAXWord *saxWord, SAXMask *saxMask);
 
 void inspectNode(Node *node, unsigned int *num_series, unsigned int *num_leaves, unsigned int *num_roots);
+
+Value getCompactness(Node *leaf_node, Value const *values, unsigned int series_length);
 
 void insertNode(Node *leaf, ID id, unsigned int initial_leaf_size, unsigned int leaf_size);
 

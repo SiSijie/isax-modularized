@@ -56,6 +56,8 @@ typedef struct Config {
     unsigned int series_limitations;
 
     Value scale_factor;
+
+    bool leaf_compactness;
 } Config;
 
 

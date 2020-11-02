@@ -2,6 +2,7 @@
 // Created by Qitong Wang on 2020/6/28.
 //
 
+#include <math.h>
 #include "node.h"
 
 
@@ -66,6 +67,42 @@ void inspectNode(Node *node, unsigned int *num_series, unsigned int *num_leaves,
             inspectNode(node->right, num_series, num_leaves, NULL);
         }
     }
+}
+
+
+Value getCompactness(Node *leaf_node, Value const *values, unsigned int series_length) {
+    if (leaf_node->size == 0) {
+        return -1;
+    } else if (leaf_node->size == 1) {
+        return 0;
+    } else if (leaf_node->compactness > 0) {
+        return leaf_node->compactness;
+    }
+
+    double sum = 0;
+    Value *local_m256_fetched_cache = aligned_alloc(256, sizeof(Value) * 8);
+
+    Value const *outer_current_series = values + series_length * leaf_node->start_id;
+    Value const *inner_current_series;
+    Value const *stop = values + series_length * (leaf_node->start_id + leaf_node->size);
+
+    while (outer_current_series < stop) {
+        inner_current_series = outer_current_series + series_length;
+
+        while (inner_current_series < stop) {
+            sum += sqrt(l2SquareSIMD(
+                    series_length, outer_current_series, inner_current_series, local_m256_fetched_cache));
+
+            inner_current_series += series_length;
+        }
+
+        outer_current_series += series_length;
+    }
+
+    leaf_node->compactness = sum / (double) series_length;
+
+    free(local_m256_fetched_cache);
+    return leaf_node->compactness;
 }
 
 
