@@ -183,9 +183,28 @@ Value l2SquareValue2SAXByMaskSIMD(unsigned int sax_length, Value const *summariz
     }
 
     m256_l2square = _mm256_hadd_ps(m256_l2square, m256_l2square);
-    _mm256_storeu_ps(cache, _mm256_hadd_ps(m256_l2square, m256_l2square));
+    _mm256_store_ps(cache, _mm256_hadd_ps(m256_l2square, m256_l2square));
 
-    return (cache[0] + cache[4]) * scale_factor;
+    Value distance = cache[0] + cache[4];
+
+    if (sax_length == 8 || sax_length == 16) {
+        return distance * scale_factor;
+    }
+
+    Value const *current_breakpoints;
+
+    for (unsigned int i = 8; i < sax_length; ++i) {
+        current_breakpoints = breakpoints + OFFSETS_BY_SEGMENTS[i] + OFFSETS_BY_MASK[masks[i]] +
+                              ((unsigned int) sax[i] >> SHIFTS_BY_MASK[masks[i]]);
+
+        if (VALUE_L(summarizations[i], *current_breakpoints)) {
+            distance += (*current_breakpoints - summarizations[i]) * (*current_breakpoints - summarizations[i]);
+        } else if (VALUE_G(summarizations[i], *(current_breakpoints + 1))) {
+            distance += (summarizations[i] - *(current_breakpoints + 1)) * (summarizations[i] - *(current_breakpoints + 1));
+        }
+    }
+
+    return distance * scale_factor;
 }
 
 
@@ -213,7 +232,6 @@ Value l2SquareValue2SAX8SIMD(unsigned int sax_length, Value const *summarization
     __m256 m256_l1 = _mm256_add_ps(m256_floor_l1, m256_ceiling_l1);
     __m256 m256_l2square = _mm256_mul_ps(m256_l1, m256_l1);
 
-    // sax_length == 8 or 16, ONLY
     if (sax_length == 16) {
         m256_summarizations = _mm256_load_ps(summarizations + 8);
         m256i_sax = _mm256_cvtepu16_epi32(_mm256_extractf128_si256(m256i_sax_packed, 1));
@@ -236,8 +254,27 @@ Value l2SquareValue2SAX8SIMD(unsigned int sax_length, Value const *summarization
         m256_l2square = _mm256_fmadd_ps(m256_l1, m256_l1, m256_l2square);
     }
 
+
     m256_l2square = _mm256_hadd_ps(m256_l2square, m256_l2square);
     _mm256_store_ps(cache, _mm256_hadd_ps(m256_l2square, m256_l2square));
 
-    return (cache[0] + cache[4]) * scale_factor;
+    Value distance = cache[0] + cache[4];
+
+    if (sax_length == 8 || sax_length == 16) {
+        return distance * scale_factor;
+    }
+
+    Value const *current_breakpoints;
+
+    for (unsigned int i = 8; i < sax_length; ++i) {
+        current_breakpoints = breakpoints + OFFSETS_BY_SEGMENTS[i] + OFFSETS_BY_CARDINALITY[7] + (unsigned int) sax[i];
+
+        if (VALUE_L(summarizations[i], *current_breakpoints)) {
+            distance += (*current_breakpoints - summarizations[i]) * (*current_breakpoints - summarizations[i]);
+        } else if (VALUE_G(summarizations[i], *(current_breakpoints + 1))) {
+            distance += (summarizations[i] - *(current_breakpoints + 1)) * (summarizations[i] - *(current_breakpoints + 1));
+        }
+    }
+
+    return distance * scale_factor;
 }

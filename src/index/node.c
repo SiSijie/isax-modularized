@@ -24,6 +24,8 @@ Node *initializeNode(SAXWord *sax, SAXMask *masks) {
     node->lock = malloc(sizeof(pthread_mutex_t));
     assert(pthread_mutex_init(node->lock, NULL) == 0);
 
+    node->compactness = -1;
+
     return node;
 }
 

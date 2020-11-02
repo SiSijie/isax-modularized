@@ -34,8 +34,8 @@ Node *route(Node const *parent, SAXWord const *sax, unsigned int num_segments) {
 }
 
 
-unsigned int decideSplitSegmentByNextBit(Index *index, Node *parent, unsigned int num_segments) {
-    unsigned int segment_to_split = -1;
+int decideSplitSegmentByNextBit(Index *index, Node *parent, unsigned int num_segments) {
+    int segment_to_split = -1;
     int bsf_difference = (int) parent->size + 1, local_difference;
     SAXMask next_bit;
 
@@ -54,10 +54,10 @@ unsigned int decideSplitSegmentByNextBit(Index *index, Node *parent, unsigned in
 
             local_difference = abs(local_difference);
             if (local_difference < bsf_difference) {
-                segment_to_split = i;
+                segment_to_split = (int) i;
                 bsf_difference = abs(local_difference);
             } else if (local_difference == bsf_difference && parent->masks[i] > parent->masks[segment_to_split]) {
-                segment_to_split = i;
+                segment_to_split = (int) i;
             }
         }
     }
@@ -96,8 +96,8 @@ unsigned int decideSplitSegmentByNextBit(Index *index, Node *parent, unsigned in
 }
 
 
-unsigned int decideSplitSegmentByDistribution(Index *index, Node *parent, unsigned int num_segments) {
-    unsigned int segment_to_split = -1;
+int decideSplitSegmentByDistribution(Index *index, Node *parent, unsigned int num_segments) {
+    int segment_to_split = -1;
     double bsf = VALUE_MAX, local_bsf, tmp, mean, std;
     SAXMask next_mask;
 
@@ -128,13 +128,13 @@ unsigned int decideSplitSegmentByDistribution(Index *index, Node *parent, unsign
             local_bsf = fabs(tmp - mean) / std;
             if (VALUE_L(local_bsf, bsf)) {
                 bsf = local_bsf;
-                segment_to_split = i;
+                segment_to_split = (int) i;
 //#ifdef DEBUG
 //                clog_debug(CLOG(CLOGGER_ID), "index - (<) mean2breakpoint of s%d (%d / %d-->%d) = %f",
 //                           i, parent->sax[i], parent->masks[i], next_mask, bsf);
 //#endif
             } else if (VALUE_EQ(local_bsf, bsf) && parent->masks[i] > parent->masks[segment_to_split]) {
-                segment_to_split = i;
+                segment_to_split = (int) i;
 //#ifdef DEBUG
 //                clog_debug(CLOG(CLOGGER_ID), "index - (=) mean2breakpoint of s%d (%d / %d-->%d) = %f",
 //                           i, parent->sax[i], parent->masks[i], next_mask, bsf);
@@ -148,7 +148,7 @@ unsigned int decideSplitSegmentByDistribution(Index *index, Node *parent, unsign
 
 
 void splitNode(Index *index, Node *parent, unsigned int num_segments, bool split_by_summarizations) {
-    unsigned int segment_to_split;
+    int segment_to_split;
 
     if (split_by_summarizations) {
         segment_to_split = decideSplitSegmentByDistribution(index, parent, num_segments);

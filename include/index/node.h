@@ -26,6 +26,8 @@ typedef struct Node {
 
     struct Node *left;
     struct Node *right;
+
+    Value compactness;
 } Node;
 
 

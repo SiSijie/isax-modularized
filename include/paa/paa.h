@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 
+#include "clog.h"
 #include "globals.h"
 
 
