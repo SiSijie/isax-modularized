@@ -99,7 +99,7 @@ Value getCompactness(Node *leaf_node, Value const *values, unsigned int series_l
         outer_current_series += series_length;
     }
 
-    leaf_node->compactness = sum / (double) (leaf_node->size * (leaf_node->size + 1) / 2.);
+    leaf_node->compactness = sum / (double) (leaf_node->size * (leaf_node->size - 1) / 2.);
 
     free(local_m256_fetched_cache);
     return leaf_node->compactness;
