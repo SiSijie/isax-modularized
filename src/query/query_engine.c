@@ -410,7 +410,7 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
 
                 if (config->leaf_compactness) {
                     clog_info(CLOG(CLOGGER_ID), "query %d - node size %d compactness %f",
-                              i + querySet->query_size, node->size, node->compactness);
+                              i + querySet->query_size, node->size, getCompactness(node, values, series_length));
                 }
 #endif
 #ifdef FINE_TIMING
