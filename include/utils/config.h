@@ -58,6 +58,7 @@ typedef struct Config {
     Value scale_factor;
 
     bool leaf_compactness;
+    bool lower_bounding;
 } Config;
 
 

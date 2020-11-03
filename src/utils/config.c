@@ -31,6 +31,7 @@ const struct option longopts[] = {
         {"numa_id",                         required_argument, 0,    23},
         {"series_limitations",              required_argument, 0,    24},
         {"leaf_compactness",                no_argument,       0,    25},
+        {"not_lower_bounding",              no_argument,       0,    26},
         {NULL,                              no_argument,       NULL, 0}
 };
 
@@ -100,6 +101,7 @@ Config *initializeConfig(int argc, char **argv) {
     config->series_limitations = 0;
 
     config->leaf_compactness = false;
+    config->lower_bounding = true;
 
     char *string_parts;
     int opt, longindex = 0;
@@ -179,6 +181,9 @@ Config *initializeConfig(int argc, char **argv) {
                 break;
             case 25:
                 config->leaf_compactness = true;
+                break;
+            case 26:
+                config->lower_bounding = false;
                 break;
             default:
                 exit(EXIT_FAILURE);

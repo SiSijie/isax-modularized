@@ -25,9 +25,74 @@ typedef struct QueryCache {
     Value scale_factor;
 
     bool sort_leaves;
+    bool lower_bounding;
 
     unsigned int series_limitations;
 } QueryCache;
+
+
+void queryNodeThreadCore(Answer *answer, Node const *node, Value const *values, unsigned int series_length,
+                         SAXWord const *saxs, unsigned int sax_length, Value const *breakpoints, Value scale_factor,
+                         Value const *query_values, Value const *query_summarization, Value *m256_fetched_cache,
+                         pthread_rwlock_t *lock) {
+    Value const *current_series;
+    SAXWord const *current_sax;
+    Value local_l2SquareSAX, local_l2Square, local_bsf = getBSF(answer);
+
+    for (current_series = values + series_length * node->start_id,
+                 current_sax = saxs + SAX_SIMD_ALIGNED_LENGTH * node->start_id;
+         current_series < values + series_length * (node->start_id + node->size);
+         current_series += series_length, current_sax += SAX_SIMD_ALIGNED_LENGTH) {
+#ifdef PROFILING
+        __sync_fetch_and_add(&sum2sax_counter_profiling, 1);
+#endif
+        local_l2SquareSAX = l2SquareValue2SAX8SIMD(sax_length, query_summarization, current_sax,
+                                                   breakpoints, scale_factor, m256_fetched_cache);
+
+        if (VALUE_G(local_bsf, local_l2SquareSAX)) {
+#ifdef PROFILING
+            __sync_fetch_and_add(&l2square_counter_profiling, 1);
+#endif
+            local_l2Square = l2SquareEarlySIMD(series_length, query_values, current_series, local_bsf,
+                                               m256_fetched_cache);
+
+            if (VALUE_G(local_bsf, local_l2Square)) {
+                pthread_rwlock_wrlock(lock);
+
+                checkNUpdateBSF(answer, local_l2Square);
+                local_bsf = getBSF(answer);
+
+                pthread_rwlock_unlock(lock);
+            }
+        }
+    }
+}
+
+
+void queryNodeNotBoundingThreadCore(Answer *answer, Node const *node, Value const *values, unsigned int series_length,
+                                    Value const *query_values, Value *m256_fetched_cache, pthread_rwlock_t *lock) {
+    Value const *current_series;
+    Value local_l2Square, local_bsf = getBSF(answer);
+
+    for (current_series = values + series_length * node->start_id;
+         current_series < values + series_length * (node->start_id + node->size);
+         current_series += series_length) {
+#ifdef PROFILING
+        __sync_fetch_and_add(&l2square_counter_profiling, 1);
+#endif
+        local_l2Square = l2SquareEarlySIMD(series_length, query_values, current_series, local_bsf,
+                                           m256_fetched_cache);
+
+        if (VALUE_G(local_bsf, local_l2Square)) {
+            pthread_rwlock_wrlock(lock);
+
+            checkNUpdateBSF(answer, local_l2Square);
+            local_bsf = getBSF(answer);
+
+            pthread_rwlock_unlock(lock);
+        }
+    }
+}
 
 
 void *queryThread(void *cache) {
@@ -56,15 +121,15 @@ void *queryThread(void *cache) {
     unsigned int block_size = queryCache->block_size;
     unsigned int num_leaves = queryCache->num_leaves;
     ID *shared_index_id = queryCache->shared_leaf_id;
+
     bool sort_leaves = queryCache->sort_leaves;
+    bool lower_bounding = queryCache->lower_bounding;
 
     unsigned int series_limitations = queryCache->series_limitations;
 
-    Value const *current_series;
-    SAXWord const *current_sax;
-    Value local_bsf, local_l2Square, local_l2SquareSAX;
+    ID leaf_id;
     unsigned int index_id, stop_index_id;
-    ID leaf_id, leaf_start_id;
+    Value local_bsf;
 
     while ((index_id = __sync_fetch_and_add(shared_index_id, block_size)) < num_leaves) {
         stop_index_id = index_id + block_size;
@@ -82,44 +147,23 @@ void *queryThread(void *cache) {
             // TODO correctness-risks traded off for efficiency
             // only using local_bsf suffers from that approximate nearest neighbours < k and never updated
             // could use VALUE_G instead of VALUE_GEQ if not for efficiency
-            if (VALUE_G(local_bsf, leaf_distances[leaf_id]) || series_limitations != 0) {
+            if (VALUE_G(local_bsf, leaf_distances[leaf_id]) || (!lower_bounding && leaf_distances[leaf_id] < 1e7)) {
 #ifdef PROFILING
                 __sync_fetch_and_add(&leaf_counter_profiling, 1);
 
-                if (series_limitations != 0 && sum2sax_counter_profiling > series_limitations) {
+                if (series_limitations != 0 && (sum2sax_counter_profiling > series_limitations ||
+                                                l2square_counter_profiling > series_limitations)) {
                     return NULL;
                 }
 #endif
-                leaf_start_id = leaves[leaf_id]->start_id;
-
-                for (current_series = values + series_length * leaf_start_id,
-                             current_sax = saxs + SAX_SIMD_ALIGNED_LENGTH * leaf_start_id;
-                     current_series < values + series_length * (leaf_start_id + leaves[leaf_id]->size);
-                     current_series += series_length, current_sax += SAX_SIMD_ALIGNED_LENGTH) {
-#ifdef PROFILING
-                    __sync_fetch_and_add(&sum2sax_counter_profiling, 1);
-#endif
-                    local_l2SquareSAX = l2SquareValue2SAX8SIMD(sax_length, query_summarization, current_sax,
-                                                               breakpoints, scale_factor, m256_fetched_cache);
-
-                    if (VALUE_G(local_bsf, local_l2SquareSAX)) {
-#ifdef PROFILING
-                        __sync_fetch_and_add(&l2square_counter_profiling, 1);
-#endif
-                        local_l2Square = l2SquareEarlySIMD(series_length, query_values, current_series, local_bsf,
-                                                           m256_fetched_cache);
-
-                        if (VALUE_G(local_bsf, local_l2Square)) {
-                            pthread_rwlock_wrlock(lock);
-
-                            checkNUpdateBSF(answer, local_l2Square);
-                            local_bsf = getBSF(answer);
-
-                            pthread_rwlock_unlock(lock);
-                        }
-                    }
+                if (lower_bounding) {
+                    queryNodeThreadCore(answer, leaves[leaf_id], values, series_length, saxs, sax_length, breakpoints,
+                                        scale_factor, query_values, query_summarization, m256_fetched_cache, lock);
+                } else {
+                    queryNodeNotBoundingThreadCore(answer, leaves[leaf_id], values, series_length, query_values,
+                                                   m256_fetched_cache, lock);
                 }
-            } else if (sort_leaves) {
+            } else if (sort_leaves && lower_bounding) {
                 return NULL;
             }
 
@@ -187,6 +231,61 @@ void enqueueLeaf(Node *node, Node **leaves, unsigned int *num_leaves) {
 }
 
 
+void queryNode(Answer *answer, Node const *node, Value const *values, unsigned int series_length,
+               SAXWord const *saxs, unsigned int sax_length, Value const *breakpoints, Value scale_factor,
+               Value const *query_values, Value const *query_summarization, Value *m256_fetched_cache) {
+    Value const *outer_current_series = values + series_length * node->start_id;
+    SAXWord const *outer_current_sax = saxs + SAX_SIMD_ALIGNED_LENGTH * node->start_id;
+    Value local_l2SquareSAX8, local_l2Square, local_bsf = getBSF(answer);
+
+    while (outer_current_series < values + series_length * (node->start_id + node->size)) {
+#ifdef PROFILING
+        sum2sax_counter_profiling += 1;
+#endif
+        local_l2SquareSAX8 = l2SquareValue2SAX8SIMD(sax_length, query_summarization, outer_current_sax,
+                                                    breakpoints, scale_factor, m256_fetched_cache);
+
+        if (VALUE_G(local_bsf, local_l2SquareSAX8)) {
+#ifdef PROFILING
+            l2square_counter_profiling += 1;
+#endif
+            local_l2Square = l2SquareEarlySIMD(series_length, query_values, outer_current_series, local_bsf,
+                                               m256_fetched_cache);
+
+            if (VALUE_G(local_bsf, local_l2Square)) {
+                checkNUpdateBSF(answer, local_l2Square);
+                local_bsf = getBSF(answer);
+            }
+        }
+
+        outer_current_series += series_length;
+        outer_current_sax += SAX_SIMD_ALIGNED_LENGTH;
+    }
+}
+
+
+void queryNodeNotBounding(Answer *answer, Node const *node, Value const *values, unsigned int series_length,
+                          Value const *query_values, Value *m256_fetched_cache) {
+    Value const *outer_current_series = values + series_length * node->start_id;
+    Value local_l2Square, local_bsf = getBSF(answer);
+
+    while (outer_current_series < values + series_length * (node->start_id + node->size)) {
+#ifdef PROFILING
+        l2square_counter_profiling += 1;
+#endif
+        local_l2Square = l2SquareEarlySIMD(series_length, query_values, outer_current_series, local_bsf,
+                                           m256_fetched_cache);
+
+        if (VALUE_G(local_bsf, local_l2Square)) {
+            checkNUpdateBSF(answer, local_l2Square);
+            local_bsf = getBSF(answer);
+        }
+
+        outer_current_series += series_length;
+    }
+}
+
+
 void conductQueries(QuerySet const *querySet, Index const *index, Config const *config) {
     Answer *answer = initializeAnswer(config);
 
@@ -245,13 +344,16 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
 
         queryCache[i].shared_leaf_id = &shared_leaf_id;
         queryCache[i].sort_leaves = config->sort_leaves;
+
+        queryCache[i].series_limitations = config->series_limitations;
+        queryCache[i].lower_bounding = config->lower_bounding;
     }
 
     Value *local_m256_fetched_cache = queryCache[0].m256_fetched_cache;
 
-    Value const *query_values, *query_summarization, *outer_current_series;
-    SAXWord const *query_sax, *outer_current_sax;
-    Value local_bsf, local_l2SquareSAX8, local_l2Square;
+    Value const *query_values, *query_summarization;
+    SAXWord const *query_sax;
+    Value local_bsf;
     Node *node;
 
     for (unsigned int i = 0; i < querySet->query_size; ++i) {
@@ -279,31 +381,11 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
 #ifdef PROFILING
             leaf_counter_profiling += 1;
 #endif
-            outer_current_series = values + series_length * node->start_id;
-            outer_current_sax = saxs + SAX_SIMD_ALIGNED_LENGTH * node->start_id;
-
-            while (outer_current_series < values + series_length * (node->start_id + node->size)) {
-#ifdef PROFILING
-                sum2sax_counter_profiling += 1;
-#endif
-                local_l2SquareSAX8 = l2SquareValue2SAX8SIMD(sax_length, query_summarization, outer_current_sax,
-                                                            breakpoints, scale_factor, local_m256_fetched_cache);
-
-                if (VALUE_G(local_bsf, local_l2SquareSAX8)) {
-#ifdef PROFILING
-                    l2square_counter_profiling += 1;
-#endif
-                    local_l2Square = l2SquareEarlySIMD(series_length, query_values, outer_current_series, local_bsf,
-                                                       local_m256_fetched_cache);
-
-                    if (VALUE_G(local_bsf, local_l2Square)) {
-                        checkNUpdateBSF(answer, local_l2Square);
-                        local_bsf = getBSF(answer);
-                    }
-                }
-
-                outer_current_series += series_length;
-                outer_current_sax += SAX_SIMD_ALIGNED_LENGTH;
+            if (config->lower_bounding) {
+                queryNode(answer, node, values, series_length, saxs, sax_length, breakpoints, scale_factor,
+                          query_values, query_summarization, local_m256_fetched_cache);
+            } else {
+                queryNodeNotBounding(answer, node, values, series_length, query_values, local_m256_fetched_cache);
             }
         } else {
             clog_info(CLOG(CLOGGER_ID), "query %d - no resident node", i);
@@ -356,31 +438,11 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
                 node = leaves[leaf_indices[0]];
                 leaf_distances[leaf_indices[0]] = VALUE_MAX;
 
-                outer_current_series = values + series_length * node->start_id;
-                outer_current_sax = saxs + SAX_SIMD_ALIGNED_LENGTH * node->start_id;
-
-                while (outer_current_series < values + series_length * (node->start_id + node->size)) {
-#ifdef PROFILING
-                    sum2sax_counter_profiling += 1;
-#endif
-                    local_l2SquareSAX8 = l2SquareValue2SAX8SIMD(sax_length, query_summarization, outer_current_sax,
-                                                                breakpoints, scale_factor, local_m256_fetched_cache);
-
-                    if (VALUE_G(local_bsf, local_l2SquareSAX8)) {
-#ifdef PROFILING
-                        l2square_counter_profiling += 1;
-#endif
-                        local_l2Square = l2SquareEarlySIMD(series_length, query_values, outer_current_series, local_bsf,
-                                                           local_m256_fetched_cache);
-
-                        if (VALUE_G(local_bsf, local_l2Square)) {
-                            checkNUpdateBSF(answer, local_l2Square);
-                            local_bsf = getBSF(answer);
-                        }
-                    }
-
-                    outer_current_series += series_length;
-                    outer_current_sax += SAX_SIMD_ALIGNED_LENGTH;
+                if (config->lower_bounding) {
+                    queryNode(answer, node, values, series_length, saxs, sax_length, breakpoints, scale_factor,
+                              query_values, query_summarization, local_m256_fetched_cache);
+                } else {
+                    queryNodeNotBounding(answer, node, values, series_length, query_values, local_m256_fetched_cache);
                 }
 
                 if (config->sort_leaves) {
@@ -422,7 +484,6 @@ void conductQueries(QuerySet const *querySet, Index const *index, Config const *
 
                 for (unsigned int j = 0; j < max_threads; ++j) {
                     queryCache[j].block_size = query_block_size;
-                    queryCache[j].series_limitations = config->series_limitations;
 
                     pthread_create(&query_threads[j], NULL, queryThread, (void *) &queryCache[j]);
                 }
